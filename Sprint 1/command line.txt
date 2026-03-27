@@ -1,0 +1,5 @@
+python extract.py input.csv 2026-03-24-S1-Techlauncher output.csv
+Processing 3 rows...
+Successfully created 'output.csv'
+
+python prepInput.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher input.csv
