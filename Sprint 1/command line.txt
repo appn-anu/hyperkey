@@ -15,5 +15,7 @@ python extract.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher output.c
 
 S1P3 extract.py
 python extract.py GH7-test-wheats-filled.csv "2026-03-24-S1-Techlauncher" output.csv --default_date 032426
+python extract.py GH7-test-wheats-filled.csv "2026-03-24-S1-Techlauncher" output.csv --default_date 032426 --default_prefix HR
 
 Date is in the format of MMDDYY
+

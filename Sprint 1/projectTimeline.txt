@@ -1,0 +1,6 @@
+s1p3 
+Currently parsing files from single root folder and using the inputs of prefix, root folder, metadata and dates 
+i.inputs from the user - extractInputs.py
+ii. arguments - extract.py
+
+s1p4

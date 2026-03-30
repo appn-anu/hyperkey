@@ -1,0 +1,2 @@
+1. How do you input the prefix, root folder and date ....other metadata stuff, does every row has these values?
+2. What do you expect from validating the metadata?
