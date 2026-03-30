@@ -19,3 +19,11 @@ python extract.py GH7-test-wheats-filled.csv "2026-03-24-S1-Techlauncher" output
 
 Date is in the format of MMDDYY
 
+s1p3 extractInputs.py
+python extractInputs.py 
+Asks for user inputs to select the required files from the root folder in the required format
+Make sure to have it in the root folder
+
+s1p4
+will also extend an option to go beyond options list to user entry - 
+Will add all the metadata into the output file - 
