@@ -1,3 +1,9 @@
+Target
+
+Metadata x reflectances on one spreadsheet
+Check which metadata entries have valid data
+Heatmap NDVI (for VNIR region) + index for SWIR1/SWIR2 (tbd)
+
 python extract.py input.csv 2026-03-24-S1-Techlauncher output.csv
 Processing 3 rows...
 Successfully created 'output.csv'
@@ -6,3 +12,8 @@ python prepInput.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher input.
 
 S1P2 extract.py 
 python extract.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher output.csv
+
+S1P3 extract.py
+python extract.py GH7-test-wheats-filled.csv "2026-03-24-S1-Techlauncher" output.csv --default_date 032426
+
+Date is in the format of MMDDYY

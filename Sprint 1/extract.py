@@ -6,44 +6,46 @@ import argparse
 import sys
 
 
-def index_sig_files(root_folder):
-    """
-    Index all .sig files in the root folder for fast lookup.
-    Returns a dict: {filename: relative_path}
-    """
-    file_index = {}
-
-    for root, _, files in os.walk(root_folder):
-        for f in files:
-            if f.endswith(".sig"):
-                rel_path = os.path.relpath(os.path.join(root, f), root_folder)
-                file_index[f] = rel_path
-
-    return file_index
-
-
-def find_file_by_filenumber(file_index, filenumber):
-    """
-    Finds a file whose name ends with filenumber.sig
-    """
-    for fname, path in file_index.items():
-        if fname.endswith(filenumber + ".sig"):
-            return path
-    return None
+# ---------------------------
+# Validation
+# ---------------------------
+def is_valid_filenum(val):
+    if val is None:
+        return False
+    val = str(val).strip()
+    if val == "":
+        return False
+    if not val.isdigit():
+        return False
+    num = int(val)
+    return 0 <= num <= 9999
 
 
-def parse_sig_file(file_path):
-    """
-    Extract wavelengths and reflectance values from a .sig file
-    """
+def format_filenum(val):
+    return str(int(val)).zfill(4)
+
+
+# ---------------------------
+# Build file path
+# ---------------------------
+def build_filepath(root, subfolder, prefix, date, filenum):
+    filename = f"{prefix}.{date}.{filenum}.sig"
+    return os.path.join(root, subfolder, filename)
+
+
+# ---------------------------
+# Parse .sig file
+# ---------------------------
+def parse_sig_file(filepath):
     wavelengths = []
-    reflectance_values = []
+    reflectance = []
     data_section = False
 
     try:
-        with open(file_path, "r") as f:
+        with open(filepath, "r") as f:
             for line in f:
                 line = line.strip()
+                
 
                 if line == "data=":
                     data_section = True
@@ -53,112 +55,122 @@ def parse_sig_file(file_path):
                     parts = line.split()
                     if len(parts) >= 4:
                         wavelengths.append(parts[0])
-                        reflectance_values.append(parts[3])
+                        reflectance.append(parts[3])
 
-        return wavelengths, reflectance_values
+        return wavelengths, reflectance
 
     except Exception as e:
-        print(f"Error reading {file_path}: {e}", file=sys.stderr)
+        print(f"Error reading {filepath}: {e}", file=sys.stderr)
         return None, None
 
 
+# ---------------------------
+# Main
+# ---------------------------
 def main():
-    parser = argparse.ArgumentParser(
-        description="Extract reflectance values using metadata filenumber column"
-    )
-    parser.add_argument("metadata_csv", help="Metadata CSV with 'filenumber' column")
-    parser.add_argument("root_folder", help="Root folder containing .sig files")
-    parser.add_argument("output_csv", help="Output CSV file")
+    parser = argparse.ArgumentParser(description="Extract reflectance data from .sig files")
+
+    parser.add_argument("metadata_csv")
+    parser.add_argument("root_folder")
+    parser.add_argument("output_csv")
+
+    parser.add_argument("--default_prefix", default="HR")
+    parser.add_argument("--default_date", required=True)
 
     args = parser.parse_args()
 
-    # Validate inputs
     if not os.path.exists(args.metadata_csv):
-        print("Error: Metadata CSV not found")
+        print("Metadata CSV not found")
         return
 
     if not os.path.exists(args.root_folder):
-        print("Error: Root folder not found")
-        return
-
-    # Index files once (FAST)
-    print("Indexing .sig files...")
-    file_index = index_sig_files(args.root_folder)
-
-    if not file_index:
-        print("Error: No .sig files found in root folder")
+        print("Root folder not found")
         return
 
     # Read metadata
-    with open(args.metadata_csv, "r", newline="") as f:
+    with open(args.metadata_csv, newline="") as f:
         reader = csv.DictReader(f)
+        rows = list(reader)
 
-        if "FileNum" not in reader.fieldnames:
-            print("Error: 'filenumber' column missing")
-            return
+        fieldnames = reader.fieldnames
 
-        metadata_rows = list(reader)
-
-    if not metadata_rows:
-        print("Error: Metadata CSV is empty")
+    if not rows:
+        print("Empty metadata CSV")
         return
 
-    print(f"Processing {len(metadata_rows)} rows...")
+    # Detect optional columns
+    has_subfolder = "Subfolder" in fieldnames
+    has_prefix = "Prefix" in fieldnames
+    has_date = "Date" in fieldnames
 
-    # Step 1: Find first valid file to extract wavelengths
-    new_headers = None
+    print(f"Processing {len(rows)} rows...")
 
-    for row in metadata_rows:
-        filenum = str(row["FileNum"]).strip()
-        rel_path = find_file_by_filenumber(file_index, filenum)
+    # Step 1: Find wavelengths
+    headers = None
 
-        if rel_path:
-            full_path = os.path.join(args.root_folder, rel_path)
-            wv, ref = parse_sig_file(full_path)
+    for row in rows:
+        if not is_valid_filenum(row.get("FileNum")):
+            continue
 
+        filenum = format_filenum(row["FileNum"])
+
+        subfolder = row.get("Subfolder", "") if has_subfolder else ""
+        prefix = row.get("Prefix") if has_prefix else args.default_prefix
+        date = row.get("Date") if has_date else args.default_date
+
+        prefix = prefix.strip() if prefix else args.default_prefix
+        date = date.strip() if date else args.default_date
+
+        path = build_filepath(args.root_folder, subfolder, prefix, date, filenum)
+
+        if os.path.exists(path):
+            wv, ref = parse_sig_file(path)
             if wv:
-                new_headers = wv
+                headers = wv
                 break
 
-    if not new_headers:
-        print("Error: Could not extract wavelengths from any file")
+    if not headers:
+        print("No valid .sig files found")
         return
 
-    # Output columns
-    output_fields = ["FilePath"] + new_headers
-
     # Step 2: Write output
+    output_fields = ["FilePath"] + headers
+
     with open(args.output_csv, "w", newline="") as out:
         writer = csv.DictWriter(out, fieldnames=output_fields)
         writer.writeheader()
 
-        for row in metadata_rows:
-            filenum = str(row["FileNum"]).strip()
-            rel_path = find_file_by_filenumber(file_index, filenum)
+        for row in rows:
+            if not is_valid_filenum(row.get("FileNum")):
+                continue
 
-            output_row = {}
+            filenum = format_filenum(row["FileNum"])
 
-            if rel_path:
-                full_path = os.path.join(args.root_folder, rel_path)
-                wv, ref = parse_sig_file(full_path)
+            subfolder = row.get("Subfolder", "") if has_subfolder else ""
+            prefix = row.get("Prefix") if has_prefix else args.default_prefix
+            date = row.get("Date") if has_date else args.default_date
+            
 
-                output_row["FilePath"] = rel_path
+            prefix = prefix.strip() if prefix else args.default_prefix
+            date = date.strip() if date else args.default_date
 
+            path = build_filepath(args.root_folder, subfolder, prefix, date, filenum)
+
+            out_row = {
+                "FilePath": os.path.relpath(path, args.root_folder)
+            }
+
+            if os.path.exists(path):
+                wv, ref = parse_sig_file(path)
                 if wv and ref:
-                    if len(wv) != len(new_headers):
-                        print(
-                            f"Warning: {rel_path} has mismatched wavelength count",
-                            file=sys.stderr,
-                        )
-
-                    for h, val in zip(new_headers, ref):
-                        output_row[h] = val
+                    for h, v in zip(headers, ref):
+                        out_row[h] = v
             else:
-                print(f"Warning: No file for filenumber {filenum}", file=sys.stderr)
+                print(f"Missing file: {path}", file=sys.stderr)
 
-            writer.writerow(output_row)
+            writer.writerow(out_row)
 
-    print(f"Successfully created '{args.output_csv}'")
+    print(f"Created {args.output_csv}")
 
 
 if __name__ == "__main__":
