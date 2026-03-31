@@ -8,6 +8,7 @@ Processing 3 rows...
 Successfully created 'output.csv'
 
 S1P2 extract.py 
+Client said there is Prefix, subfolder path that is needed in the arguments list
 Redesigning 
 python extract.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher output.csv
 
