@@ -39,6 +39,7 @@ def get_directories():
 def is_valid_filenum(val):
     if val is None: return False
     val = str(val).strip()
+    # Returns True only if it's not empty and consists of digits
     return val.isdigit() and 0 <= int(val) <= 9999
 
 def format_filenum(val):
@@ -91,14 +92,11 @@ def main():
     output_csv = input("Enter output filename [Default: merged_spectral_data.csv]: ").strip() or "merged_spectral_data.csv"
 
     print("\nProcessing...")
-    print(f"\n\nUser Selections:")
     print(f"Metadata CSV: {metadata_csv}")
     print(f"Root Folder: {root_folder}")    
     print(f"Default Prefix: {default_prefix}")
     print(f"Default Date: {default_date}")  
     print(f"Output CSV: {output_csv}")
-
-    print("\n\n Validating and Extracting Data ")
 
     # 2. Read Metadata
     try:
@@ -143,7 +141,6 @@ def main():
         return
 
     # 4. Merge and Write Output
-    # The new header is [Original Metadata Columns] + [Calculated FilePath] + [Wavelengths]
     output_fields = original_fieldnames + ["Calculated_FilePath"] + spectral_headers
 
     try:
@@ -151,15 +148,19 @@ def main():
             writer = csv.DictWriter(out, fieldnames=output_fields)
             writer.writeheader()
 
+            processed_count = 0
+            skipped_count = 0
+
             for row in rows:
-                # Start the output row with ALL data from the current metadata row
-                out_row = dict(row)
-                
                 f_val = row.get("FileNum")
+                
+                # --- SKIP LOGIC ---
+                # If FileNum is blank or non-numeric, skip the row entirely
                 if not is_valid_filenum(f_val):
-                    writer.writerow(out_row) # Still write the metadata even if no spectral data
+                    skipped_count += 1
                     continue
 
+                out_row = dict(row)
                 prefix = (row.get("Prefix") or default_prefix).strip()
                 date = (row.get("Date") or default_date).strip()
                 subfolder = row.get("Subfolder", "") if has_subfolder else ""
@@ -174,15 +175,18 @@ def main():
                 if os.path.exists(path):
                     wv, ref = parse_sig_file(path)
                     if wv and ref:
-                        # Add the reflectance values to the dictionary
                         for h, v in zip(spectral_headers, ref):
                             out_row[h] = v
                 else:
                     print(f"Missing file: {path}", file=sys.stderr)
 
                 writer.writerow(out_row)
+                processed_count += 1
         
-        print(f"\nSuccess! Merged metadata and spectral data into '{output_csv}'.")
+        print(f"\nSuccess!")
+        print(f"- Rows Processed: {processed_count}")
+        print(f"- Rows Skipped (blank/invalid FileNum): {skipped_count}")
+        print(f"- File created: '{output_csv}'")
 
     except PermissionError:
         print(f"Error: {output_csv} is open in another program.")

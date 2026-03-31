@@ -28,8 +28,13 @@ Make sure to have it in the root folder
 
 s1p4
 Update 1
-will also extend an option to go beyond options list to user entry - 
+will also extend an option to go beyond options list to user entry - Done
+
 Update 2-
 New file extractMetadata.py
 Output file - Sprint 1\merged_spectral_data.csv
-Will add all the metadata into the output file - 
+
+Will add all the metadata into the output file -  Done
+
+Update 3 - 
+Excluding the files with the blank filenum in the metadata updated
