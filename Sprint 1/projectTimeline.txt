@@ -1,6 +1,50 @@
-s1p3 
+Target
+
+Metadata x reflectances on one spreadsheet
+Check which metadata entries have valid data
+Heatmap NDVI (for VNIR region) + index for SWIR1/SWIR2 (tbd)
+
+python extract.py input.csv 2026-03-24-S1-Techlauncher output.csv
+Processing 3 rows...
+Successfully created 'output.csv'
+
+python prepInput.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher input.csv
+
+sprint1phase1
+Running as client required, using the client sample code for understanding the workflow
+Built an extra file to run the metadata and parse the filename and give it to the clients code
+
+S1P2 extract.py 
+Redesigning 
+python extract.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher output.csv
+
+S1P3 extract.py
+Output file - Sprint 1\output.csv
+python extract.py GH7-test-wheats-filled.csv "2026-03-24-S1-Techlauncher" output.csv --default_date 032426
+python extract.py GH7-test-wheats-filled.csv "2026-03-24-S1-Techlauncher" output.csv --default_date 032426 --default_prefix HR
+
+Date is in the format of MMDDYY
+
+s1p3 extractInputs.py 
 Currently parsing files from single root folder and using the inputs of prefix, root folder, metadata and dates 
 i.inputs from the user - extractInputs.py
 ii. arguments - extract.py
 
+Output file - Sprint 1\processed_output.csv
+
+python extractInputs.py 
+Asks for user inputs to select the required files from the root folder in the required format
+Make sure to have it in the root folder
+
 s1p4
+Update 1
+will also extend an option to go beyond options list to user entry - Done
+
+Update 2-
+New file extractMetadata.py
+Output file - Sprint 1\merged_spectral_data.csv
+
+Will add all the metadata into the output file -  Done
+
+Update 3 - 
+Excluding the files with the blank filenum in the metadata updated
