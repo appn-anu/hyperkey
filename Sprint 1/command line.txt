@@ -10,7 +10,12 @@ Successfully created 'output.csv'
 
 python prepInput.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher input.csv
 
+sprint1phase1
+Running as client required, using the client sample code for understanding the workflow
+Built an extra file to run the metadata and parse the filename and give it to the clients code
+
 S1P2 extract.py 
+Redesigning 
 python extract.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher output.csv
 
 S1P3 extract.py
