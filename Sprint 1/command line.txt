@@ -25,5 +25,7 @@ Asks for user inputs to select the required files from the root folder in the re
 Make sure to have it in the root folder
 
 s1p4
+Update 1
 will also extend an option to go beyond options list to user entry - 
+Update 2-
 Will add all the metadata into the output file - 

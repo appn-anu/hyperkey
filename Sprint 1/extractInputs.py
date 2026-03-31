@@ -8,22 +8,29 @@ import sys
 # Interactive Selection Helpers
 # ---------------------------
 def select_from_list(items, prompt_label):
-    """Displays a numbered list and returns the selected item."""
-    if not items:
-        print(f"No {prompt_label} found in current directory.")
-        return None
-    
+    """Displays a numbered list and returns the selected item or a manual entry."""
     print(f"\n--- Select {prompt_label} ---")
+    print("[0] ENTER MANUALLY / TYPE PATH")
+    
     for i, item in enumerate(items, 1):
         print(f"[{i}] {item}")
     
     while True:
-        choice = input(f"Enter number (1-{len(items)}): ").strip()
+        choice = input(f"Enter number (0-{len(items)}): ").strip()
+        
+        if choice == "0":
+            manual_val = input(f"Type the manual value for {prompt_label}: ").strip()
+            if manual_val:
+                return manual_val
+            print("Input cannot be empty.")
+            continue
+
         if choice.isdigit():
             idx = int(choice) - 1
             if 0 <= idx < len(items):
                 return items[idx]
-        print("Invalid selection. Please try again.")
+        
+        print(f"Invalid selection. Please enter 0 to type manually or 1-{len(items)}.")
 
 def get_files_by_ext(ext):
     return [f for f in os.listdir('.') if f.lower().endswith(ext) and os.path.isfile(f)]
@@ -32,13 +39,14 @@ def get_directories():
     return [d for d in os.listdir('.') if os.path.isdir(d)]
 
 # ---------------------------
-# Validation & Logic (Original)
+# Validation & Logic
 # ---------------------------
 def is_valid_filenum(val):
     if val is None: return False
     val = str(val).strip()
     if val == "" or not val.isdigit(): return False
-    return 0 <= int(val) <= 9999
+    num = int(val)
+    return 0 <= num <= 9999
 
 def format_filenum(val):
     return str(int(val)).zfill(4)
@@ -75,31 +83,44 @@ def main():
     csv_files = get_files_by_ext('.csv')
     metadata_csv = select_from_list(csv_files, "Metadata CSV")
     if not metadata_csv: return
+    
+    if not os.path.exists(metadata_csv):
+        print(f"Error: Metadata file '{metadata_csv}' not found.")
+        return
 
     # 2. Select Root Folder
     dirs = get_directories()
-    # Add current directory as an option
     dirs.insert(0, ".") 
     root_folder = select_from_list(dirs, "Root Folder (where .sig files are)")
     if not root_folder: return
+    
+    if not os.path.isdir(root_folder):
+        print(f"Error: Folder '{root_folder}' not found.")
+        return
 
     # 3. Get Default Prefix & Date
+    print("\n--- Additional Configuration ---")
     default_prefix = input("Enter default prefix [Default: HR]: ").strip() or "HR"
+    
     default_date = ""
     while not default_date:
-        default_date = input("Enter default date in the format of MMDDYY (REQUIRED, e.g., 032426): ").strip()
+        default_date = input("Enter default date in the format MMDDYY (REQUIRED, e.g., 032426): ").strip()
 
     # 4. Name Output File
     output_csv = input("Enter output filename [Default: processed_output.csv]: ").strip() or "processed_output.csv"
 
     # --- Processing Logic ---
-    with open(metadata_csv, newline="") as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-        fieldnames = reader.fieldnames
+    try:
+        with open(metadata_csv, newline="") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            fieldnames = reader.fieldnames if reader.fieldnames else []
+    except Exception as e:
+        print(f"Error opening CSV: {e}")
+        return
 
     if not rows:
-        print("Empty metadata CSV")
+        print("Empty metadata CSV or file could not be read.")
         return
 
     has_subfolder = "Subfolder" in fieldnames
@@ -111,9 +132,10 @@ def main():
     # Step 1: Find wavelengths for headers
     headers = None
     for row in rows:
-        if not is_valid_filenum(row.get("FileNum")): continue
+        filenum_val = row.get("FileNum")
+        if not is_valid_filenum(filenum_val): continue
         
-        filenum = format_filenum(row["FileNum"])
+        filenum = format_filenum(filenum_val)
         subfolder = row.get("Subfolder", "") if has_subfolder else ""
         prefix = (row.get("Prefix") or default_prefix).strip()
         date = (row.get("Date") or default_date).strip()
@@ -126,37 +148,49 @@ def main():
                 break
 
     if not headers:
-        print("No valid .sig files found. Check your paths and date.")
+        print("No valid .sig files found. Double-check your path, prefix, and date.")
         return
 
     # Step 2: Write output
     output_fields = ["FilePath"] + headers
-    with open(output_csv, "w", newline="") as out:
-        writer = csv.DictWriter(out, fieldnames=output_fields)
-        writer.writeheader()
+    try:
+        with open(output_csv, "w", newline="") as out:
+            writer = csv.DictWriter(out, fieldnames=output_fields)
+            writer.writeheader()
 
-        for row in rows:
-            if not is_valid_filenum(row.get("FileNum")): continue
+            for row in rows:
+                filenum_val = row.get("FileNum")
+                if not is_valid_filenum(filenum_val): continue
 
-            filenum = format_filenum(row["FileNum"])
-            subfolder = row.get("Subfolder", "") if has_subfolder else ""
-            prefix = (row.get("Prefix") or default_prefix).strip()
-            date = (row.get("Date") or default_date).strip()
+                filenum = format_filenum(filenum_val)
+                subfolder = row.get("Subfolder", "") if has_subfolder else ""
+                prefix = (row.get("Prefix") or default_prefix).strip()
+                date = (row.get("Date") or default_date).strip()
 
-            path = build_filepath(root_folder, subfolder, prefix, date, filenum)
-            out_row = {"FilePath": os.path.relpath(path, root_folder)}
+                path = build_filepath(root_folder, subfolder, prefix, date, filenum)
+                
+                # Use relative path for the CSV output
+                try:
+                    rel_path = os.path.relpath(path, root_folder)
+                except ValueError:
+                    rel_path = path
 
-            if os.path.exists(path):
-                wv, ref = parse_sig_file(path)
-                if wv and ref:
-                    for h, v in zip(headers, ref):
-                        out_row[h] = v
-            else:
-                print(f"Missing file: {path}", file=sys.stderr)
+                out_row = {"FilePath": rel_path}
 
-            writer.writerow(out_row)
+                if os.path.exists(path):
+                    wv, ref = parse_sig_file(path)
+                    if wv and ref:
+                        for h, v in zip(headers, ref):
+                            out_row[h] = v
+                else:
+                    print(f"Missing file: {path}", file=sys.stderr)
 
-    print(f"\nSuccess! Created {output_csv}")
+                writer.writerow(out_row)
+        
+        print(f"\nSuccess! Created '{output_csv}' with {len(headers)} spectral bands.")
+
+    except PermissionError:
+        print(f"Error: Could not write to {output_csv}. Is it open in Excel?")
 
 if __name__ == "__main__":
     main()
