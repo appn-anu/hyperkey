@@ -1,3 +1,6 @@
+Plan of Action and client meeting notes
+
+
 1. How do you input the prefix, root folder and date ....other metadata stuff, does every row has these values?
 2. What do you expect from validating the metadata?
 
@@ -44,5 +47,22 @@ If the same day, the user will only provide that days metadata
 Prompt the user for the key columns -The row has atleast unique values 
 ## No No - Check both sheets headers, find the common ones and combine now
 
-8. Non unique full file path, warn the user. - add it to the running list.
+8. Non unique full file path found by matching the data files folder with the metadata, warn the user. - add it to the running list.
 DF, check unique 
+
+Sprint2
+
+1. Work on client requirements from sprint 1
+2. Visualizations
+
+1. Color schema, follow and document, hardcode
+2. Make modular to put in more formulas into the heatmaps, more indexes coming
+XY position, and the heatmap is ndvi values
+if only plant ids and no position files, just pack that into a arbitary rectangle
+
+3shapes, row and range - postional layout
+
+Output HTML PDFS JPEG multiple options - all outputs in one file, markdown file
+One single report, have all the images - Visualizations 
+
+Potential cause of the issue -> Future scope, no issues can be defined explicitly for now
