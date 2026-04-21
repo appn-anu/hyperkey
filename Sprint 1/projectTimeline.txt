@@ -54,3 +54,15 @@ Excluding the files with the blank filenum in the metadata updated
 UPDATE 4 - 
 Visualize.py - Generate Heatmap.
 VisualizePlot.py - Saving the heatmap plot included. File saving, File location needs to be set, include that option in the next ones.
+
+run python VisualizePlot.py
+Output files .png for now
+
+Sprint 2 
+s1p4 branch
+python extractPro.py
+Satisfies all the client requirements
+Need to test
+Need to handle range and row with new datafile
+
+output file: Sprint 1\merged_spectral_data.csv
