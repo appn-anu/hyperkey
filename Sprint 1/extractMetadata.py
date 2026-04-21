@@ -170,7 +170,9 @@ def main():
                 try:
                     out_row["Calculated_FilePath"] = os.path.relpath(path, root_folder)
                 except ValueError:
-                    out_row["Calculated_FilePath"] = path
+                     raise FileNotFoundError(f"Metadata FileNum {f_val} has no matching .sig file.\n"
+                       f"Expected path: {path}"
+                    )
 
                 if os.path.exists(path):
                     wv, ref = parse_sig_file(path)
