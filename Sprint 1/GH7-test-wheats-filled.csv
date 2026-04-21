@@ -1,0 +1,13 @@
+Name,Genotype,Variety,Treatment,FileNum,Comments
+HCN 1,Wheat,Chara,SingleAF,2,white ref 0
+HCN 2,Wheat,Chara,SingleAF,4,
+HCN 3,Wheat,Chara,SingleAF,5,leaf partially covered
+HCN 4,Wheat,Chara,SingleAF,7,
+HCN 5,Wheat,Chara,TripleAF,8,5
+HCN 6,Wheat,Chara,TripleAF,9,6
+HCN 7,Wheat,Chara,TripleAF,10,8
+HCN 8,Wheat,Chara,TripleAF,11,HCN7
+HCN 9,Wheat,Chara,TripleNF,,
+HCN 10,Wheat,Chara,TripleNF,,
+HCN 11,Wheat,Chara,TripleNF,,
+HCN 12,Wheat,Chara,TripleNF,,

@@ -1,0 +1,48 @@
+1. How do you input the prefix, root folder and date ....other metadata stuff, does every row has these values?
+2. What do you expect from validating the metadata?
+
+
+Heat map is for one measurement NDVI, 
+
+3 columns - optional - will be absent in the header
+Subfolder , Date, Prefix
+
+1. Halt the program if fileNum in metadata not found
+
+2. Include Prefix, date, subfolder path to make it concrete, error free
+
+a. Metadata - date, prefix, subfolder
+b. Blank - follow the previous one
+c. ./ Root folder
+d. what if the first subfolder cell itself is blank - search root ------ Strip trailing slashs Starting and ending values using the dots - so . means root folder
+e. in subfolder path -> Having .. or anything wrong, give warning
+
+Possibility about the first row is blank, but the next rows have subfolder path? Warn the user- use the root folder. if next cell has, just update the subfolder path
+Flag - root folder is used, the first row itself is blank, later subfolder path is found
+# Until subfolder path is found, use the root folder
+
+3. If not in the header - follow the current one - 
+if there is no subfolder path in header - assume that all the files are in the root folder 
+
+same with no prefix col, prompt and if no response use default hr 
+if there is a prefix col and ntg , Give warning, use default HR. 
+No date col - prompt - required 
+if there is date col and blank, throw an error
+
+4. Only ask inputs for the colums that are not there 
+Assuming there is only one value for all those not defined
+
+5. Do the prompting for values if the mandatory arg are absent
+if 1 is missing prompt for that
+
+6. 2 or more metadata files - include all the metadata in one 
+
+If the user wants the previous days, he will include it in the metadata
+If the same day, the user will only provide that days metadata
+
+7. If 2 Metadata sheets (the other optional one), we need to merge it at combined metadata sheet
+Prompt the user for the key columns -The row has atleast unique values 
+## No No - Check both sheets headers, find the common ones and combine now
+
+8. Non unique full file path, warn the user. - add it to the running list.
+DF, check unique 
