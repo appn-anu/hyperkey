@@ -1,12 +1,14 @@
-Log Created: 2026-04-28 16:41:45
-==============================
-Total Rows Evaluated: 12
-Successfully Processed: 8
-Skipped (Blank): 4
-Skipped (Invalid Format): 0
-Skipped (File Not Found): 0
-------------------------------
-[2026-04-28 16:41:49] Row 9: Missing FileNum.
-[2026-04-28 16:41:49] Row 10: Missing FileNum.
-[2026-04-28 16:41:49] Row 11: Missing FileNum.
-[2026-04-28 16:41:49] Row 12: Missing FileNum.
+LOG REPORT - Generated: 2026-04-28 16:51:16
+
+Success Metrics!!
+Total Rows in Metadata: 12
+Successfully Matched Files: 8
+Rows with Blank FileNum: 4
+Rows with Invalid FileNum Format: 0
+Rows with Missing .sig Files: 0
+==================================================
+
+Row 9: Blank FileNum found.
+Row 10: Blank FileNum found.
+Row 11: Blank FileNum found.
+Row 12: Blank FileNum found.

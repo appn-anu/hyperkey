@@ -60,3 +60,4 @@ All files in root folder, no Subfolders
 No subfolders in csv file
 Test with Sprint 1/GH7-test-wheats-filled.csv
 Date is asked in the arg
+Prefix is asked in the arg
