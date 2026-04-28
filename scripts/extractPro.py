@@ -74,12 +74,12 @@ def parse_sig_file(filepath):
 def main():
     parser = argparse.ArgumentParser(description="Extract and Merge Spectral Metadata")
     parser.add_argument('metadata_files', nargs='*', help="One or more metadata CSV files")
-    parser.add_argument('-r', '--root', help="Root folder")
+    parser.add_argument('-r', '--config', help="Root folder")
     parser.add_argument('-o', '--output', help="Optional: Full path or filename for merged CSV output")
     args = parser.parse_args()
 
     # 1. Setup Output Directory and Paths
-    default_dir = os.path.join("..", "data", "output")
+    default_dir = os.path.join("..", "data", "output_data")
     if not os.path.exists(default_dir):
         os.makedirs(default_dir)
 
