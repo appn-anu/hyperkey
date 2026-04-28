@@ -71,7 +71,7 @@ In main
 Folders reorganized 
 python scripts/extractPro.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
 
-Documentation in s1p4 branch (will be renamed to parsing branch soon)
+Documentation in s1p4 branch (will be renamed to parser branch )
 Running from hyperkey folder path in command line
 D:\Masters of computing\Tech Launcher\hyperkey>python "scripts\extractPro.py" "data\processed_data\GH7-test-SubFolder.csv" -r "data\raw_data"  
 From scripts folder 
