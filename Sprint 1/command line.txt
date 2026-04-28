@@ -43,7 +43,7 @@ CSV contains the values under the subfolder column
 Meta data file to test - GH7-test-SubFolder
 Path D:\Masters of computing\Tech Launcher\hyperkey\Sprint 1\GH7-test-SubFolder.csv
 Command line -
-D:\Masters of computing\Tech Launcher\hyperkey\Sprint 1>python extractPro.py "D:/Masters of computing/Tech Launcher/hyperkey/Sprint 1/GH7-test-wheats-filled.csv" -c "D:/,"
+D:\Masters of computing\Tech Launcher\hyperkey\Sprint 1>python extractPro.py "D:/Masters of computing/Tech Launcher/hyperkey/Sprint 1/GH7-test-wheats-filled.csv" -r "D:/"
 Output metadata file not specified - uses default
 
 Root folder not specified, metadata file contains full path of the folder, working - can be used in case where the data files are not in a single root folder
@@ -61,3 +61,8 @@ No subfolders in csv file
 Test with Sprint 1/GH7-test-wheats-filled.csv
 Date is asked in the arg
 Prefix is asked in the arg
+
+Custom output filename 
+python extractPro.py GH7-test-SubFolder.csv -o mergedTest.csv 
+in full path 
+python extractPro.py GH7-test-SubFolder.csv -o "D:\Masters of computing/mergedTest.csv" 

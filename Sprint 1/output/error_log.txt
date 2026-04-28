@@ -1,14 +1,14 @@
-LOG REPORT - Generated: 2026-04-28 16:51:16
+LOG REPORT - Generated: 2026-04-28 17:08:03
 
 Success Metrics!!
-Total Rows in Metadata: 12
-Successfully Matched Files: 8
-Rows with Blank FileNum: 4
+Total Rows in Metadata: 13
+Successfully Matched Files: 9
+Rows with Blank FileNum: 3
 Rows with Invalid FileNum Format: 0
-Rows with Missing .sig Files: 0
+Rows with Missing .sig Files: 1
 ==================================================
 
-Row 9: Blank FileNum found.
+Row 9: File missing at .\2026-03-24-S1-Techlauncher\HR.032426.0100.sig
 Row 10: Blank FileNum found.
 Row 11: Blank FileNum found.
 Row 12: Blank FileNum found.

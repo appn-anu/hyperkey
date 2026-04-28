@@ -43,7 +43,6 @@ def format_filenum(val):
         return val
 
 def build_filepath(root, subfolder, prefix, date, filenum):
-    # Ensure filenum is padded for the path string
     padded_f = format_filenum(filenum)
     filename = f"{prefix}.{date}.{padded_f}.sig"
     return os.path.join(root, subfolder or "", filename)
@@ -75,15 +74,31 @@ def parse_sig_file(filepath):
 def main():
     parser = argparse.ArgumentParser(description="Extract and Merge Spectral Metadata")
     parser.add_argument('metadata_files', nargs='*', help="One or more metadata CSV files")
-    parser.add_argument('-c', '--config', help="Root folder, comma separated")
+    parser.add_argument('-r', '--root', help="Root folder")
+    parser.add_argument('-o', '--output', help="Optional: Full path or filename for merged CSV output")
     args = parser.parse_args()
 
-    # 1. Setup Output Folder
-    output_dir = "output"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    # 1. Setup Output Directory and Paths
+    default_dir = os.path.join("..", "data", "output")
+    if not os.path.exists(default_dir):
+        os.makedirs(default_dir)
 
-    log_path = os.path.join(output_dir, "error_log.txt")
+    # Determine CSV output path logic
+    if args.output:
+        if os.path.isabs(args.output) or os.path.dirname(args.output):
+            # It's a path (relative or absolute)
+            output_csv = args.output
+            # Ensure the directory for the custom path exists
+            out_parent = os.path.dirname(output_csv)
+            if out_parent and not os.path.exists(out_parent):
+                os.makedirs(out_parent)
+        else:
+            # It's just a filename
+            output_csv = os.path.join(default_dir, args.output)
+    else:
+        output_csv = os.path.join(default_dir, "merged_spectral_data.csv")
+
+    log_path = os.path.join(default_dir, "error_log.txt")
     
     # 2. Selection Phase
     metadata_files = args.metadata_files
@@ -145,7 +160,7 @@ def main():
     output_data = []
     log_entries = []
 
-    # First pass to find spectral headers (wavelengths) from the first valid file
+    # First pass: find spectral headers
     for row in all_rows:
         f_val = row.get("FileNum", "").strip()
         sub = row.get("Subfolder", "").strip() or curr_subfolder
@@ -159,27 +174,23 @@ def main():
                 spectral_headers = wv
                 break
 
-    # Second pass: Process all rows
+    # Second pass: Process all rows (Left Join style)
     for idx, row in enumerate(all_rows, 1):
         f_val = row.get("FileNum", "").strip()
         
-        # Fill forward logic for path calculation
         if has_subfolder and row.get("Subfolder"): curr_subfolder = row["Subfolder"].strip()
         if has_prefix and row.get("Prefix"): curr_prefix = row["Prefix"].strip()
         if has_date and row.get("Date"): curr_date = row["Date"].strip()
 
         out_row = dict(row)
-        # Update row with fill-forward values so the CSV reflects the actual search parameters
         if has_prefix: out_row["Prefix"] = curr_prefix
         if has_date: out_row["Date"] = curr_date
         if has_subfolder: out_row["Subfolder"] = curr_subfolder
         
-        # Default empty values
         out_row["Calculated_FilePath"] = ""
         if spectral_headers:
             for h in spectral_headers: out_row[h] = ""
 
-        # Logic Checks
         if not f_val:
             skipped_blank += 1
             log_entries.append(f"Row {idx}: Blank FileNum found.")
@@ -187,7 +198,6 @@ def main():
             skipped_invalid_format += 1
             log_entries.append(f"Row {idx}: Invalid FileNum format '{f_val}'.")
         else:
-            # Valid format, check file
             target_path = build_filepath(root_folder, curr_subfolder, curr_prefix, curr_date, f_val)
             out_row["Calculated_FilePath"] = os.path.relpath(target_path, root_folder)
             
@@ -202,18 +212,21 @@ def main():
 
         output_data.append(out_row)
 
-    # 6. Write CSV and Log
-    output_csv = os.path.join(output_dir, "merged_spectral_data.csv")
+    # 6. Writing Files
     final_headers = original_fieldnames + ["Calculated_FilePath"] + (spectral_headers or [])
     
-    with open(output_csv, "w", newline="") as out:
-        writer = csv.DictWriter(out, fieldnames=final_headers)
-        writer.writeheader()
-        writer.writerows(output_data)
+    try:
+        with open(output_csv, "w", newline="") as out:
+            writer = csv.DictWriter(out, fieldnames=final_headers)
+            writer.writeheader()
+            writer.writerows(output_data)
+    except Exception as e:
+        print(f"Error writing CSV to {output_csv}: {e}")
 
     with open(log_path, "w") as log_f:
         log_f.write(f"LOG REPORT - Generated: {get_log_timestamp()}\n")
-        log_f.write(f"\nSuccess Metrics!!\nTotal Rows in Metadata: {len(all_rows)}\n")
+        log_f.write(f"\nSuccess Metrics!!\n")
+        log_f.write(f"Total Rows in Metadata: {len(all_rows)}\n")
         log_f.write(f"Successfully Matched Files: {processed_count}\n")
         log_f.write(f"Rows with Blank FileNum: {skipped_blank}\n")
         log_f.write(f"Rows with Invalid FileNum Format: {skipped_invalid_format}\n")
@@ -227,9 +240,9 @@ def main():
     print(f"Total Rows Processed: {len(all_rows)}")
     print(f"Files Found & Merged: {processed_count}")
     print(f"Warnings Logged: {len(log_entries)}")
-    print(f"\nOutputs saved to '{output_dir}':")
-    print(f"- CSV: {os.path.basename(output_csv)}")
-    print(f"- Log: {os.path.basename(log_path)}")
+    print(f"\nOutputs saved:")
+    print(f"- CSV: {output_csv}")
+    print(f"- Log: {log_path}")
 
 if __name__ == "__main__":
     main()
