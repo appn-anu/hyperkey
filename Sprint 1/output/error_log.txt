@@ -1,0 +1,12 @@
+Log Created: 2026-04-28 16:41:45
+==============================
+Total Rows Evaluated: 12
+Successfully Processed: 8
+Skipped (Blank): 4
+Skipped (Invalid Format): 0
+Skipped (File Not Found): 0
+------------------------------
+[2026-04-28 16:41:49] Row 9: Missing FileNum.
+[2026-04-28 16:41:49] Row 10: Missing FileNum.
+[2026-04-28 16:41:49] Row 11: Missing FileNum.
+[2026-04-28 16:41:49] Row 12: Missing FileNum.

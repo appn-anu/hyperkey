@@ -54,7 +54,7 @@ Prompt the user for the key columns -The row has atleast unique values
 DF, check unique 
 
 Sprint2
-
+s2p1
 1. Work on client requirements from sprint 1 - done 
 2. Visualizations
 
@@ -71,10 +71,12 @@ One single report, have all the images - Visualizations
 Potential cause of the issue -> Future scope, no issues can be defined explicitly for now
 
 21/04/2026
+
 1. In the metadata, do you give the relative folder path or complete folder path?
 2. Do u want me to add the rows with missing FileNum in metadata into the merged_spectral_data csv output file?
 
 28/04/26
+s2p2
 1.Test-> Instead of halting as discussed in s1p3, have a log file  -> follow no.4
 2. -> Done Change the subfolder path to work as root+subfolder 
 all the files are expected to be on one root folder
@@ -101,7 +103,7 @@ Date - ignoring the length cal part, expect it to be a string and also length 6 
 Date is asked in the arg also Take the Prefix from input, if blank HR 
 11. -> Need to test Rows processed is counting all the valid file number formats, count only is the file found
 
-summarized todays plan 
+summarized todays plan s2p2
 1. if no prefix column found, its taking default prefix HR
 Before you do that, ask the user if he has any default prefix through input, if the response is blank, take HR, mention if HR, enter HR or press enter 
 2. If filenum exist, is not found in the dir respective to it

@@ -4,14 +4,17 @@ import csv
 import os
 import sys
 import argparse
+from datetime import datetime
 
 # ---------------------------
-# Interactive Selection Helpers
+# Helpers & Formatting
 # ---------------------------
+def get_log_timestamp():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 def select_from_list(items, prompt_label):
     print(f"\n--- Select {prompt_label} ---")
     print("[0] ENTER MANUALLY / TYPE PATH")
-    
     for i, item in enumerate(items, 1):
         print(f"[{i}] {item}")
     
@@ -28,15 +31,6 @@ def select_from_list(items, prompt_label):
                 return items[idx]
         print(f"Invalid selection. Please enter 0 or 1-{len(items)}.")
 
-def get_files_by_ext(ext):
-    return [f for f in os.listdir('.') if f.lower().endswith(ext) and os.path.isfile(f)]
-
-def get_directories():
-    return [d for d in os.listdir('.') if os.path.isdir(d)]
-
-# ---------------------------
-# Validation & Logic
-# ---------------------------
 def is_valid_filenum(val):
     if val is None: return False
     val = str(val).strip()
@@ -47,9 +41,7 @@ def format_filenum(val):
 
 def build_filepath(root, subfolder, prefix, date, filenum):
     filename = f"{prefix}.{date}.{filenum}.sig"
-    if subfolder:
-        return os.path.join(root, subfolder, filename)
-    return os.path.join(root, filename)
+    return os.path.join(root, subfolder or "", filename)
 
 def parse_sig_file(filepath):
     wavelengths, reflectance = [], []
@@ -67,8 +59,7 @@ def parse_sig_file(filepath):
                         wavelengths.append(parts[0])
                         reflectance.append(parts[3])
         return wavelengths, reflectance
-    except Exception as e:
-        print(f"Error reading {filepath}: {e}", file=sys.stderr)
+    except Exception:
         return None, None
 
 # ---------------------------
@@ -77,226 +68,156 @@ def parse_sig_file(filepath):
 def main():
     parser = argparse.ArgumentParser(description="Extract and Merge Spectral Metadata")
     parser.add_argument('metadata_files', nargs='*', help="One or more metadata CSV files")
-    parser.add_argument('-c', '--config', help="Root folder and Output file, comma separated (e.g., root_dir, output.csv)")
-    
+    parser.add_argument('-c', '--config', help="Root folder, comma separated")
     args = parser.parse_args()
 
-    # 1. Selection Phase (Args vs Interactive)
+    # 1. Setup Output Folder
+    output_dir = "output"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    log_path = os.path.join(output_dir, "error_log.txt")
+    with open(log_path, "w") as log_f:
+        log_f.write(f"Log Created: {get_log_timestamp()}\n" + "="*30 + "\n")
+
+    # 2. Selection Phase
     metadata_files = args.metadata_files
-    output_csv = "merged_spectral_data.csv"
     root_folder = "."
 
     if not metadata_files:
-        # INTERACTIVE MODE
-        csv_files = get_files_by_ext('.csv')
+        csv_files = [f for f in os.listdir('.') if f.lower().endswith('.csv')]
         selected_csv = select_from_list(csv_files, "Metadata CSV")
-        if not selected_csv or not os.path.exists(selected_csv): return
+        if not selected_csv: return
         metadata_files = [selected_csv]
-
-        dirs = get_directories()
-        dirs.insert(0, ".") 
-        selected_root = select_from_list(dirs, "Root Folder (where .sig files are)")
-        if not selected_root or not os.path.isdir(selected_root): return
-        root_folder = selected_root
-
-        print("\n--- Additional Configuration ---")
-        output_csv = input("Enter output filename [Default: merged_spectral_data.csv]: ").strip() or "merged_spectral_data.csv"
+        
+        dirs = [d for d in os.listdir('.') if os.path.isdir(d)]
+        dirs.insert(0, ".")
+        root_folder = select_from_list(dirs, "Root Folder")
     else:
-        # CLI ARGS MODE
         if args.config:
-            parts = args.config.split(',')
-            output_csv = parts[1].strip() if parts[1].strip() else "merged_spectral_data.csv"
-            if len(parts) > 1 and parts[0].strip():
-                root_folder = parts[0].strip()
-            else:
-                print("WARNING: Root folder path isn't given in config. Using current working directory.")
-        else:
-            print("WARNING: Root folder path isn't given. Using current working directory.")
+            root_folder = args.config.split(',')[0].strip() or "."
 
-    print("\nProcessing...")
-    print(f"Metadata Files: {', '.join(metadata_files)}")
-    print(f"Root Folder: {root_folder}")    
-    print(f"Output CSV: {output_csv}")
-
-    # 2. Read and Merge Metadata
-    rows = []
+    # 3. Read Metadata
+    all_rows = []
     original_fieldnames = []
-
-    if len(metadata_files) == 1:
+    for mf in metadata_files:
         try:
-            with open(metadata_files[0], newline="") as f:
+            with open(mf, newline="") as f:
                 reader = csv.DictReader(f)
-                rows = list(reader)
-                original_fieldnames = reader.fieldnames if reader.fieldnames else []
+                fields = reader.fieldnames or []
+                if not original_fieldnames:
+                    original_fieldnames = fields
+                all_rows.extend(list(reader))
         except Exception as e:
-            print(f"Error opening CSV: {e}")
+            print(f"Error reading {mf}: {e}")
             return
-    else:
-        # Merge multiple CSVs based on common headers
-        header_sets = []
-        all_temp_rows = []
-        for mf in metadata_files:
-            try:
-                with open(mf, newline="") as f:
-                    reader = csv.DictReader(f)
-                    fields = reader.fieldnames if reader.fieldnames else []
-                    header_sets.append(set(fields))
-                    all_temp_rows.extend(list(reader))
-            except Exception as e:
-                print(f"Error opening {mf}: {e}")
-                return
-        if header_sets:
-            common_headers = [h.strip() for h in set.intersection(*header_sets)] # Only keep headers that are common across all files, and strip whitespace
-            original_fieldnames = common_headers
-            for r in all_temp_rows:
-                rows.append({k: r.get(k, "") for k in common_headers})
 
-    if not rows:
-        print("Empty metadata CSV(s).")
-        return
-
-    # Check Headers
+    # 4. Header & Prefix Logic
     has_subfolder = "Subfolder" in original_fieldnames
     has_prefix = "Prefix" in original_fieldnames
     has_date = "Date" in original_fieldnames
-    print(f"\nHeader Analysis:")
-    print(f"- Subfolder Column: {'Found' if has_subfolder else 'Missing'}")
-    print(f"- Prefix Column: {'Found' if has_prefix else 'Missing'}")           
-    print(f"- Date Column: {'Found' if has_date else 'Missing'}")
-    print(original_fieldnames)
     
-
-
-    fixed_prefix = None
-    fixed_date = None
-
+    fixed_prefix = "HR"
     if not has_prefix:
-        print("WARNING: Prefix column header missing. Using default prefix 'HR'.")
-        fixed_prefix = "HR"
+        user_prefix = input("Prefix column missing. Enter default prefix [Press Enter for 'HR']: ").strip()
+        fixed_prefix = user_prefix if user_prefix else "HR"
     
+    fixed_date = ""
     if not has_date:
-        fixed_date = input("WARNING: Date column header missing. Please enter a fixed Date for entire data: ").strip()
+        fixed_date = input("Date column missing. Enter fixed Date: ").strip()
 
-    if not has_subfolder:
-        print("WARNING: Subfolder column missing. Using the root folder to search.")
-
-    # Fill-forward state variables
-    curr_prefix = "HR"
-    curr_date = ""
+    # 5. Processing
+    processed_count = 0
+    skipped_blank = 0
+    skipped_invalid_format = 0
+    skipped_missing_file = 0
+    
+    curr_prefix = fixed_prefix
+    curr_date = fixed_date
     curr_subfolder = ""
-
-    # 3. First Pass - Fill forward logic, Validation, and find Spectral Headers
+    
     spectral_headers = None
-    processed_rows_data = []
+    output_data = []
+    log_entries = []
 
-    for idx, row in enumerate(rows):
-        f_val = row.get("FileNum")
-        if not is_valid_filenum(f_val): 
-            # Still record it for accurate skipped counting later
-            processed_rows_data.append((row, None, None, None, f_val))
+    for idx, row in enumerate(all_rows, 1):
+        f_val = row.get("FileNum", "").strip()
+        
+        # Fill forward logic
+        if has_subfolder and row.get("Subfolder"): curr_subfolder = row["Subfolder"].strip()
+        if has_prefix and row.get("Prefix"): curr_prefix = row["Prefix"].strip()
+        if has_date and row.get("Date"): curr_date = row["Date"].strip()
+
+        # Validation
+        if not f_val:
+            skipped_blank += 1
+            log_entries.append(f"Row {idx}: Missing FileNum.")
+            continue
+            
+        if not is_valid_filenum(f_val):
+            skipped_invalid_format += 1
+            log_entries.append(f"Row {idx}: Invalid FileNum format '{f_val}'.")
             continue
 
-        # --- Subfolder Logic ---
-        if not has_subfolder:
-            row_subfolder = ""
-        else:
-            val = row.get("Subfolder", "").strip()
-            if idx == 0 and not val:
-                print("WARNING: Subfolder first row is blank. Using root folder to search.")
-                curr_subfolder = ""
-            elif val:
-                if "." in val or "./" in val:
-                    print(f"WARNING: Subfolder '{val}' contains '.' or './' indicating root/current dir.")
-                
-                check_path = os.path.join(root_folder, val)
-                if not os.path.isdir(check_path) and val not in [".", "./"]:
-                    print(f"WARNING: Subfolder '{val}' does not exist. File will be skipped if not in root.")
-                curr_subfolder = val
-            row_subfolder = curr_subfolder
-
-        # --- Prefix Logic ---
-        if not has_prefix:
-            row_prefix = fixed_prefix
-        else:
-            val = row.get("Prefix", "").strip()
-            if idx == 0 and not val:
-                print("WARNING: Prefix first row is missing. Using default 'HR'.")
-                curr_prefix = "HR"
-            elif val:
-                curr_prefix = val
-            row_prefix = curr_prefix
-
-        # --- Date Logic ---
-        if not has_date:
-            row_date = fixed_date
-        else:
-            val = row.get("Date", "").strip()
-            if idx == 0 and not val:
-                curr_date = input("WARNING: Date is missing on the first row. Enter date: ").strip()
-            elif val:
-                curr_date = val
-            row_date = curr_date
-
-        processed_rows_data.append((row, row_prefix, row_date, row_subfolder, f_val))
-
-        # Scan for headers if we haven't found them yet
-        if not spectral_headers:
-            test_path = build_filepath(root_folder, row_subfolder, row_prefix, row_date, format_filenum(f_val))
-            if os.path.exists(test_path):
-                wv, _ = parse_sig_file(test_path)
-                if wv:
-                    spectral_headers = wv
-
-    if not spectral_headers:
-        print("Could not find any valid .sig files to determine wavelengths.")
-        return
-
-    # 4. Write Output
-    output_fields = original_fieldnames + ["Calculated_FilePath"] + spectral_headers
-    processed_count = 0
-    skipped_count = 0
-
-    try:
-        with open(output_csv, "w", newline="") as out:
-            writer = csv.DictWriter(out, fieldnames=output_fields)
-            writer.writeheader()
-
-            for row_dict, prefix, date, subfolder, f_val in processed_rows_data:
-                if not is_valid_filenum(f_val):
-                    skipped_count += 1
-                    continue
-
-                out_row = dict(row_dict)
-                path = build_filepath(root_folder, subfolder, prefix, date, format_filenum(f_val))
-                
-                try:
-                    out_row["Calculated_FilePath"] = os.path.relpath(path, root_folder)
-                except ValueError:
-                     raise FileNotFoundError(f"Metadata FileNum {f_val} has no matching .sig file.\n Expected path: {path}\n")
-
-                if os.path.exists(path):
-                    wv, ref = parse_sig_file(path)
-                    if wv and ref:
-                        for h, v in zip(spectral_headers, ref):
-                            out_row[h] = v
-                else:
-                    print(f"Missing file: {path}", file=sys.stderr)
-
-                # Overwrite original values with the filled-forward ones to keep the output accurate
-                if has_prefix: out_row["Prefix"] = prefix
-                if has_date: out_row["Date"] = date
-                if has_subfolder: out_row["Subfolder"] = subfolder
-
-                writer.writerow(out_row)
-                processed_count += 1
+        # File Existence Check
+        target_path = build_filepath(root_folder, curr_subfolder, curr_prefix, curr_date, format_filenum(f_val))
         
-        print(f"\nSuccess!")
-        print(f"- Rows Processed: {processed_count}")
-        print(f"- Rows Skipped (blank/invalid FileNum): {skipped_count}")
-        print(f"- Output File created: '{output_csv}'\n  (Path: {os.path.abspath(output_csv)})\n")
+        if not os.path.exists(target_path):
+            skipped_missing_file += 1
+            log_entries.append(f"Row {idx}: File not found at {target_path}")
+            continue
 
-    except PermissionError:
-        print(f"Error: {output_csv} is open in another program.")
+        # Valid File Found
+        wv, ref = parse_sig_file(target_path)
+        if wv:
+            if not spectral_headers: spectral_headers = wv
+            
+            out_row = dict(row)
+            out_row["Calculated_FilePath"] = os.path.relpath(target_path, root_folder)
+            # Update with fill-forward values for consistency
+            if has_prefix: out_row["Prefix"] = curr_prefix
+            if has_date: out_row["Date"] = curr_date
+            if has_subfolder: out_row["Subfolder"] = curr_subfolder
+            
+            for h, v in zip(wv, ref):
+                out_row[h] = v
+            
+            output_data.append(out_row)
+            processed_count += 1
+        else:
+            log_entries.append(f"Row {idx}: Could not parse data from {target_path}")
+
+    # 6. Write Final Output
+    output_csv = os.path.join(output_dir, "merged_spectral_data.csv")
+    final_headers = original_fieldnames + ["Calculated_FilePath"] + (spectral_headers or [])
+    
+    with open(output_csv, "w", newline="") as out:
+        writer = csv.DictWriter(out, fieldnames=final_headers)
+        writer.writeheader()
+        writer.writerows(output_data)
+
+    # 7. Finalize Log with Metrics
+    with open(log_path, "a") as log_f:
+        log_f.write(f"Total Rows Evaluated: {len(all_rows)}\n")
+        log_f.write(f"Successfully Processed: {processed_count}\n")
+        log_f.write(f"Skipped (Blank): {skipped_blank}\n")
+        log_f.write(f"Skipped (Invalid Format): {skipped_invalid_format}\n")
+        log_f.write(f"Skipped (File Not Found): {skipped_missing_file}\n")
+        log_f.write("-" * 30 + "\n")
+        for entry in log_entries:
+            log_f.write(f"[{get_log_timestamp()}] {entry}\n")
+
+    # Console Output
+    print(f"\nSuccess!")
+    print(f"- Total Rows: {len(all_rows)}")
+    print(f"- Rows Processed: {processed_count}")
+    print(f"- Rows Skipped: {skipped_blank + skipped_invalid_format + skipped_missing_file}")
+    print(f"  - Blank: {skipped_blank}")
+    print(f"  - Invalid Format: {skipped_invalid_format}")
+    print(f"  - Missing File: {skipped_missing_file}")
+    print(f"\nFiles created in '{output_dir}':")
+    print(f"- CSV: {os.path.basename(output_csv)}")
+    print(f"- Log: {os.path.basename(log_path)}")
 
 if __name__ == "__main__":
     main()
