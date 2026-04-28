@@ -1,0 +1,82 @@
+Target
+
+Metadata x reflectances on one spreadsheet
+Check which metadata entries have valid data
+Heatmap NDVI (for VNIR region) + index for SWIR1/SWIR2 (tbd)
+
+Build modular 
+
+python extract.py input.csv 2026-03-24-S1-Techlauncher output.csv
+Processing 3 rows...
+Successfully created 'output.csv'
+
+python prepInput.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher input.csv
+
+sprint1phase1
+Running as client required, using the client sample code for understanding the workflow
+Built an extra file to run the metadata and parse the filename and give it to the clients code
+
+S1P2 extract.py 
+Redesigning 
+python extract.py GH7-test-wheats-filled.csv 2026-03-24-S1-Techlauncher output.csv
+
+S1P3 extract.py
+Output file - Sprint 1\output.csv
+python extract.py GH7-test-wheats-filled.csv "2026-03-24-S1-Techlauncher" output.csv --default_date 032426
+python extract.py GH7-test-wheats-filled.csv "2026-03-24-S1-Techlauncher" output.csv --default_date 032426 --default_prefix HR
+
+Date is in the format of MMDDYY
+
+s1p3 extractInputs.py 
+Currently parsing files from single root folder and using the inputs of prefix, root folder, metadata and dates 
+i.inputs from the user - extractInputs.py
+ii. arguments - extract.py
+
+Output file - Sprint 1\processed_output.csv
+
+python extractInputs.py 
+Asks for user inputs to select the required files from the root folder in the required format
+Make sure to have it in the root folder
+
+s1p4
+Update 1
+will also extend an option to go beyond options list to user entry - Done
+
+Update 2-
+New file extractMetadata.py
+Output file - Sprint 1\merged_spectral_data.csv
+
+Will add all the metadata into the output file -  Done
+
+Update 3 - 
+Excluding the files with the blank filenum in the metadata updated
+
+UPDATE 4 - 
+Visualize.py - Generate Heatmap.
+VisualizePlot.py - Saving the heatmap plot included. File saving, File location needs to be set, include that option in the next ones.
+
+run python VisualizePlot.py
+Output files .png for now
+
+Sprint 2 
+s2p1
+s1p4 branch
+python extractPro.py
+Satisfies all the client requirements
+Need to test
+Need to handle range and row with new datafile
+
+output file: Sprint 1\merged_spectral_data.csv
+
+s2p2
+Testing all the updates made
+python extractPro.py GH7-test-wheats-filled.csv
+python extractPro.py D:\Masters of computing\Tech Launcher\hyperkey\Sprint 1\GH7-test-wheats-filled.csv
+
+conflict guide 
+  default_dir = os.path.join("..", "data", "output_data")
+python "scripts\extractPro.py" "data\processed_data\GH7-test-SubFolder.csv" -r "data\raw_data"
+The saving folder while running through hyper key using the above command needs to be 
+default_dir = os.path.join("..", "data", "output_data")
+Extract pro to use from hyperkey folder
+extract scripts to use from scripts folder

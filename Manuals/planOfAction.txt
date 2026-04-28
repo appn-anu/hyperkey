@@ -1,0 +1,128 @@
+Plan of Action and client meeting notes
+
+
+1. How do you input the prefix, root folder and date ....other metadata stuff, does every row has these values?
+2. What do you expect from validating the metadata?
+
+
+Heat map is for one measurement NDVI, 
+
+3 columns - optional - will be absent in the header
+Subfolder , Date, Prefix
+
+s1p3
+
+1. Halt the program if fileNum in metadata not found - Done
+
+2. Include Prefix, date, subfolder path to make it concrete, error free - Done
+(Update : Only metadata is the arg taken now, the output file name and path are optional, can be specified in the argument)
+a. Metadata - date, prefix, subfolder (Update: extracted from metadata file) Done
+b. Blank - follow the previous one (The variable is updated when it encounters a new value) Done
+c. ./ Root folder - Done
+d. what if the first subfolder cell itself is blank - search root ------ Strip trailing slashs Starting and ending values using the dots - so . means root folder Done
+e. in subfolder path -> Having .. or anything wrong, give warning Done
+
+Possibility about the first row is blank, but the next rows have subfolder path? Warn the user- use the root folder. if next cell has, just update the subfolder path Done
+Flag and warn - root folder is used, the first row itself is blank, later subfolder path is found Done
+# Until subfolder path is found, use the root folder Done
+
+3. If (the args used previouly -> moved to metadata csv file now) something is not in the header of metadata csv file- follow as follows - 
+if there is no subfolder path in header of the metadata csv file - assume that all the files are in the root folder 
+same with no prefix column, prompt and if no response or blank response use default hr 
+if there is a prefix col and has blank value in the first itself , Give warning, use default HR, and update if any on the next row when parsing 
+No date column in metadata file - prompt - required and the same data is followed for the entire metadata file
+
+if there is date col and first is blank, throw an error - currently set to ask user and use it for the entire dataset until there is one to get update
+
+4. Only ask inputs for the colums that are not there 
+Assuming there is only one value for all those not defined
+hardcoded
+
+5. Do the prompting for values if the mandatory arg are absent
+if 1 is missing prompt for that - Done
+
+6. DONE - 2 or more metadata files - include all the metadata in one 
+
+If the user wants the previous days, he will include it in the metadata
+If the same day, the user will only provide that days metadata
+
+If 2 Metadata sheets (the other optional one), we need to merge it at combined metadata sheet
+Prompt the user for the key columns -The row has atleast unique values 
+## No No - Check both sheets headers, find the common ones and combine now
+
+7. Need to be done, plan - Non unique full file path found by matching the data files folder with the metadata, warn the user. - add it to the running list.
+DF, check unique 
+
+Sprint2
+s2p1
+1. Work on client requirements from sprint 1 - done 
+2. Visualizations
+
+1. Color schema, follow and document, hardcode
+2. Make modular to put in more formulas into the heatmaps, more indexes coming
+XY position, and the heatmap is ndvi values
+if only plant ids and no position files, just pack that into a arbitary rectangle
+
+3shapes, row and range - postional layout
+
+Output HTML PDFS JPEG multiple options - all outputs in one file, markdown file
+One single report, have all the images - Visualizations 
+
+Potential cause of the issue -> Future scope, no issues can be defined explicitly for now
+
+21/04/2026
+
+1. In the metadata, do you give the relative folder path or complete folder path?
+2. Do u want me to add the rows with missing FileNum in metadata into the merged_spectral_data csv output file?
+
+28/04/26
+s2p2
+1.Test-> Instead of halting as discussed in s1p3, have a log file  -> follow no.4
+2. -> Done Change the subfolder path to work as root+subfolder 
+all the files are expected to be on one root folder
+3. -> Done Handle metadata file path - working
+    i. It should handle relative path - where the program is
+    ii. if full path is given - use the full path
+4. Check and test-> Log 
+Time stamp
+i.the success para, add total number of rows too - 
+using the length of the csv file in the metadata sheet X
+Add all the others -> ok
+Rows skipped -> 
+Blank file numbers seperate 
+invalid file number format in a seperate one, with line number in the log
+ii. missing files (in the path ) -> have the calculated file path in the log
+5. -> Done If the file number exists and name is blank - halt the program
+Skip this -> No.5 is messy
+Date - ignoring the length cal part, expect it to be a string and also length 6 in MMDDYY format
+6. -> Done make clear arg document to give the root folder, work on it with no.2 
+7. MERGED ONES TO CONTAIN THE BLANK ROWS FROM METADATA FILE
+8. Test it with multiple spread sheets
+9. -> Need to test Have the output in a output folder
+10. -> Need to Test All files in root folder, no prefix col
+Date is asked in the arg also Take the Prefix from input, if blank HR 
+11. -> Need to test Rows processed is counting all the valid file number formats, count only is the file found
+
+summarized todays plan s2p2
+1. if no prefix column found, its taking default prefix HR
+Before you do that, ask the user if he has any default prefix through input, if the response is blank, take HR, mention if HR, enter HR or press enter 
+2. If filenum exist, is not found in the dir respective to it
+log this into a seperate txt file called log, if not exist, create, if exist, clear and overwrite
+The log contains the time stamp when it was created
+3. Rows with blank filenumbers, invalid file number format, and missing files to be added in the mergedspectraldata file 
+4.and also the respective warnings and info to be entered into the log file
+Add the row number of invalid filenumber format and its name
+also same for missing file number
+Add the calculated file_path that is not found in the folder to the log
+5.and all the above rows are coming up in the count of Rows processed, Rows processed is counting all the valid file number formats, count only if the file found
+Rows skipped-> keep the blank count seperete and invalid count seperate and missing count seperate
+6. Add the success metrics to the top in the log file, also contain the total number of rows
+Keep everything displayed in the terminal as it is
+7. Create or use a existing output folder and output the mergedspectraldata csv over there
+
+Reports  ->  markdown -> convert to PDF, HTML - all, no prompts
+1. Success Metrics
+2. Spectral graph
+3. Index based heatmaps
+No need -> merged_spectral_data
+
