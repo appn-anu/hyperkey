@@ -1,14 +1,19 @@
-LOG REPORT - Generated: 2026-04-28 18:52:07
+LOG REPORT - Generated: 2026-04-28 19:38:15
 
 Success Metrics!!
-Total Rows in Metadata: 13
-Successfully Matched Files: 9
-Rows with Blank FileNum: 3
+Total Rows in Metadata: 25
+Successfully Matched Files: 16
+Rows with Blank FileNum: 7
 Rows with Invalid FileNum Format: 0
-Rows with Missing .sig Files: 1
+Rows with Missing .sig Files: 2
 ==================================================
 
-Row 9: File missing at ..\data\raw_data\2026-03-24-S1-Techlauncher\HR.032426.0100.sig
+Row 9: File missing at data\raw_data\2026-03-24-S1-Techlauncher\HR.032426.0100.sig
 Row 10: Blank FileNum found.
 Row 11: Blank FileNum found.
 Row 12: Blank FileNum found.
+Row 21: Blank FileNum found.
+Row 22: Blank FileNum found.
+Row 23: Blank FileNum found.
+Row 24: Blank FileNum found.
+Row 25: File missing at D:\Masters of computing\Tech Launcher\hyperkey\data\raw_data\SVC sample files\HR.090323.0002.sig
