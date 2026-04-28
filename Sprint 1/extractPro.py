@@ -77,7 +77,7 @@ def parse_sig_file(filepath):
 def main():
     parser = argparse.ArgumentParser(description="Extract and Merge Spectral Metadata")
     parser.add_argument('metadata_files', nargs='*', help="One or more metadata CSV files")
-    parser.add_argument('-c', '--config', help="Output file and root folder, comma separated (e.g., output.csv,root_dir)")
+    parser.add_argument('-c', '--config', help="Root folder and Output file, comma separated (e.g., root_dir, output.csv)")
     
     args = parser.parse_args()
 
@@ -105,9 +105,9 @@ def main():
         # CLI ARGS MODE
         if args.config:
             parts = args.config.split(',')
-            output_csv = parts[0].strip() if parts[0].strip() else "merged_spectral_data.csv"
-            if len(parts) > 1 and parts[1].strip():
-                root_folder = parts[1].strip()
+            output_csv = parts[1].strip() if parts[1].strip() else "merged_spectral_data.csv"
+            if len(parts) > 1 and parts[0].strip():
+                root_folder = parts[0].strip()
             else:
                 print("WARNING: Root folder path isn't given in config. Using current working directory.")
         else:
@@ -146,7 +146,7 @@ def main():
                 print(f"Error opening {mf}: {e}")
                 return
         if header_sets:
-            common_headers = list(set.intersection(*header_sets))
+            common_headers = [h.strip() for h in set.intersection(*header_sets)] # Only keep headers that are common across all files, and strip whitespace
             original_fieldnames = common_headers
             for r in all_temp_rows:
                 rows.append({k: r.get(k, "") for k in common_headers})
@@ -159,6 +159,13 @@ def main():
     has_subfolder = "Subfolder" in original_fieldnames
     has_prefix = "Prefix" in original_fieldnames
     has_date = "Date" in original_fieldnames
+    print(f"\nHeader Analysis:")
+    print(f"- Subfolder Column: {'Found' if has_subfolder else 'Missing'}")
+    print(f"- Prefix Column: {'Found' if has_prefix else 'Missing'}")           
+    print(f"- Date Column: {'Found' if has_date else 'Missing'}")
+    print(original_fieldnames)
+    
+
 
     fixed_prefix = None
     fixed_date = None

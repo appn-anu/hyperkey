@@ -35,3 +35,28 @@ New file extractMetadata.py
 python extractMetadata.py
 Output file - Sprint 1\merged_spectral_data.csv
 
+s1p4
+28/04/2026
+Running extractPro.py
+Subfolders in Drive D with path D:/ given as root folder
+CSV contains the values under the subfolder column 
+Meta data file to test - GH7-test-SubFolder
+Path D:\Masters of computing\Tech Launcher\hyperkey\Sprint 1\GH7-test-SubFolder.csv
+Command line -
+D:\Masters of computing\Tech Launcher\hyperkey\Sprint 1>python extractPro.py "D:/Masters of computing/Tech Launcher/hyperkey/Sprint 1/GH7-test-wheats-filled.csv" -c "D:/,"
+Output metadata file not specified - uses default
+
+Root folder not specified, metadata file contains full path of the folder, working - can be used in case where the data files are not in a single root folder
+python extractPro.py "D:/Masters of computing/Tech Launcher/hyperkey/Sprint 1/GH7-test-fullPathSubFolder.csv"
+Metadata file path can be found in the command line
+
+If metadata file in the program directory 
+python extractPro.py GH7-test-fullPathSubFolder.csv   
+
+If the root folder is the working directory, and the data files are in the subfolder path and its specified in the csv file, it works
+python extractPro.py "D:/Masters of computing/Tech Launcher/hyperkey/Sprint 1/GH7-test-SubFolder.csv" 
+
+All files in root folder, no Subfolders
+No subfolders in csv file
+Test with Sprint 1/GH7-test-wheats-filled.csv
+Date is asked in the arg
