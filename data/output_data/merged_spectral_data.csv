@@ -1,0 +1,14 @@
+Name,Genotype,Variety,Treatment,FileNum,Comments,Date,Prefix,Subfolder,Calculated_FilePath
+HCN 1,Wheat,Chara,SingleAF,2,white ref 0,032426,HR,2026-03-24-S1-Techlauncher,2026-03-24-S1-Techlauncher\HR.032426.0002.sig
+HCN 2,Wheat,Chara,SingleAF,4,,032426,HR,2026-03-24-S1-Techlauncher,2026-03-24-S1-Techlauncher\HR.032426.0004.sig
+HCN 3,Wheat,Chara,SingleAF,5,leaf partially covered,032426,HR,2026-03-24-S1-Techlauncher,2026-03-24-S1-Techlauncher\HR.032426.0005.sig
+HCN 4,Wheat,Chara,SingleAF,7,,032426,HR,2026-03-24-S1-Techlauncher,2026-03-24-S1-Techlauncher\HR.032426.0007.sig
+HCN 5,Wheat,Chara,TripleAF,8,5,032426,HR,2026-03-24-S1-Techlauncher,2026-03-24-S1-Techlauncher\HR.032426.0008.sig
+HCN 6,Wheat,Chara,TripleAF,9,6,032426,HR,2026-03-24-S1-Techlauncher,2026-03-24-S1-Techlauncher\HR.032426.0009.sig
+HCN 7,Wheat,Chara,TripleAF,10,8,032426,HR,2026-03-24-S1-Techlauncher,2026-03-24-S1-Techlauncher\HR.032426.0010.sig
+HCN 8,Wheat,Chara,TripleAF,11,HCN7,032426,HR,2026-03-24-S1-Techlauncher,2026-03-24-S1-Techlauncher\HR.032426.0011.sig
+HCN 9,Wheat,Chara,TripleNF,100,,032426,HR,2026-03-24-S1-Techlauncher,2026-03-24-S1-Techlauncher\HR.032426.0100.sig
+HCN 10,Wheat,Chara,TripleNF,,,032426,HR,2026-03-24-S1-Techlauncher,
+HCN 11,Wheat,Chara,TripleNF,,,032426,HR,2026-03-24-S1-Techlauncher,
+HCN 12,Wheat,Chara,TripleNF,,,032426,HR,2026-03-24-S1-Techlauncher,
+HCN A,,,,2,,090323,HR,SVC sample files\Day1,SVC sample files\Day1\HR.090323.0002.sig
