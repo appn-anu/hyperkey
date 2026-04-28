@@ -68,7 +68,11 @@ in full path
 python extractPro.py GH7-test-SubFolder.csv -o "D:\Masters of computing/mergedTest.csv" 
 
 New reorganized folders
+working while in the scripts 
+python extractPro.py "..\data\processed_data\GH7-test-SubFolder.csv" -r "..\data\raw_data"
+D:\Masters of computing\Tech Launcher\hyperkey\scripts>python extractPro.py "..\data\processed_data\GH7-test-SubFolder.csv" -r "..\data\raw_data"
 python extractPro.py GH7-test-SubFolder.csv -r "D:\Masters of computing\Tech Launcher\hyperkey\data\raw_data"
 D:\Masters of computing\Tech Launcher\hyperkey\scripts>python extractPro.py GH7-test-SubFolder.csv -r "D:\Masters of computing\Tech Launcher\hyperkey\data\raw_data"
 
 D:\Masters of computing\Tech Launcher\hyperkey\scripts>python extractPro.py GH7-test-SubFolder.csv -r "..\data\raw_data"
+

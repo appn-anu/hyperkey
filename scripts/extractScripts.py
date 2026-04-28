@@ -79,7 +79,7 @@ def main():
     args = parser.parse_args()
 
     # 1. Setup Output Directory and Paths
-    default_dir = os.path.join("data", "output_data")
+    default_dir = os.path.join("..", "data", "output_data")
     if not os.path.exists(default_dir):
         os.makedirs(default_dir)
 
