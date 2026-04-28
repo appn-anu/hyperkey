@@ -72,3 +72,6 @@ s2p2
 Testing all the updates made
 python extractPro.py GH7-test-wheats-filled.csv
 python extractPro.py D:\Masters of computing\Tech Launcher\hyperkey\Sprint 1\GH7-test-wheats-filled.csv
+
+conflict guide 
+  default_dir = os.path.join("..", "data", "output_data")
