@@ -75,3 +75,6 @@ python extractPro.py D:\Masters of computing\Tech Launcher\hyperkey\Sprint 1\GH7
 
 conflict guide 
   default_dir = os.path.join("..", "data", "output_data")
+python "scripts\extractPro.py" "data\processed_data\GH7-test-SubFolder.csv" -r "data\raw_data"
+The saving folder while running through hyper key using the above command needs to be 
+default_dir = os.path.join("..", "data", "output_data")
