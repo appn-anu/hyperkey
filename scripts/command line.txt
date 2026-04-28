@@ -70,3 +70,10 @@ python extractPro.py GH7-test-SubFolder.csv -o "D:\Masters of computing/mergedTe
 In main 
 Folders reorganized 
 python scripts/extractPro.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
+
+Documentation in s1p4 branch (will be renamed to parsing branch soon)
+Running from hyperkey folder path in command line
+D:\Masters of computing\Tech Launcher\hyperkey>python "scripts\extractPro.py" "data\processed_data\GH7-test-SubFolder.csv" -r "data\raw_data"  
+From scripts folder 
+python extractPro.py "..\data\processed_data\GH7-test-SubFolder.csv" -r "..\data\raw_data"
+D:\Masters of computing\Tech Launcher\hyperkey\scripts>python extractPro.py "..\data\processed_data\GH7-test-SubFolder.csv" -r "..\data\raw_data"

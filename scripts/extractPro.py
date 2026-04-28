@@ -79,7 +79,15 @@ def main():
     args = parser.parse_args()
 
     # 1. Setup Output Directory and Paths
-    default_dir = os.path.join("..", "data", "output_data")
+    # 1. Setup Output Directory and Paths
+    # Get the directory where the script is actually located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Anchor to the project root (assuming script is in 'scripts/' and data is in 'data/')
+    project_root = os.path.abspath(os.path.join(script_dir, ".."))
+    
+    # Define the default output directory relative to the project root
+    default_dir = os.path.join(project_root, "data", "output_data")
     if not os.path.exists(default_dir):
         os.makedirs(default_dir)
 
