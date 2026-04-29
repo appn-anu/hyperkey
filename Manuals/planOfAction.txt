@@ -126,3 +126,7 @@ Reports  ->  markdown -> convert to PDF, HTML - all, no prompts
 3. Index based heatmaps
 No need -> merged_spectral_data
 
+05/05/2026
+1.Make the code modular, 
+2.Test and check for any issues
+3.Document all the tests on a testing branch with all the datasets used

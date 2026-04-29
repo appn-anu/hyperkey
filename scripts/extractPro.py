@@ -79,7 +79,6 @@ def main():
     args = parser.parse_args()
 
     # 1. Setup Output Directory and Paths
-    # 1. Setup Output Directory and Paths
     # Get the directory where the script is actually located
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
@@ -112,18 +111,31 @@ def main():
     metadata_files = args.metadata_files
     root_folder = "."
 
+    # --- CHANGES START HERE ---
+    processed_dir = os.path.join(project_root, "data", "processed_data")
+    raw_dir = os.path.join(project_root, "data", "raw_data")
+
     if not metadata_files:
-        csv_files = [f for f in os.listdir('.') if f.lower().endswith('.csv')]
+        # Determine where to search for CSVs
+        search_csv_path = processed_dir if os.path.exists(processed_dir) else "."
+        csv_files = [os.path.join(search_csv_path, f) for f in os.listdir(search_csv_path) if f.lower().endswith('.csv')]
+        
         selected_csv = select_from_list(csv_files, "Metadata CSV")
         if not selected_csv: return
         metadata_files = [selected_csv]
         
-        dirs = [d for d in os.listdir('.') if os.path.isdir(d)]
-        dirs.insert(0, ".")
+        # Determine where to search for Root Folders
+        if os.path.exists(raw_dir):
+            dirs = [raw_dir] + [os.path.join(raw_dir, d) for d in os.listdir(raw_dir) if os.path.isdir(os.path.join(raw_dir, d))]
+        else:
+            dirs = [d for d in os.listdir('.') if os.path.isdir(d)]
+            dirs.insert(0, ".")
+            
         root_folder = select_from_list(dirs, "Root Folder")
     else:
         if args.config:
             root_folder = args.config.split(',')[0].strip() or "."
+    # --- CHANGES END HERE ---
 
     # 3. Read Metadata
     all_rows = []
