@@ -4,6 +4,7 @@ import csv
 import os
 import sys
 import argparse
+import json
 from datetime import datetime
 
 # ---------------------------
@@ -254,6 +255,23 @@ def main():
         log_f.write("="*50 + "\n\n")
         for entry in log_entries:
             log_f.write(f"{entry}\n")
+    
+    summary = {
+        "timestamp": get_log_timestamp(),
+        "total_rows": len(all_rows),
+        "matched_files": processed_count,
+        "blank_filenum": skipped_blank,
+        "invalid_filenum": skipped_invalid_format,
+        "missing_sig_files": skipped_missing_file,
+        "output_csv": output_csv,
+        "log_file": log_path
+    }
+
+    summary_path = os.path.join(default_dir, "summary.json")
+    with open(summary_path, "w") as file:
+        json.dump(summary, file, indent=4)
+    
+
 
     # Terminal Output
     print(f"\nProcessing Complete!")
@@ -263,6 +281,7 @@ def main():
     print(f"\nOutputs saved:")
     print(f"- CSV: {output_csv}")
     print(f"- Log: {log_path}")
+    print(f"- JSON: {summary_path}")
 
 if __name__ == "__main__":
     main()
