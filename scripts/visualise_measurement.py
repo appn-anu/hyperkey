@@ -12,7 +12,12 @@ import load_data as ld
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import json
+from pathlib import Path
 
+
+# python visualise_measurement.py all all_spectral_measurements
+# python visualise_measurement.py "HCN1" hcn1_grap
 
 def plot_measurement(df, name, output_path=None):
     """
@@ -87,6 +92,27 @@ def plot_all_measurements(df, output_path=None):
 
     plt.close()
 
+def adding_visuals_in_json(project_root, title, visual_type, image_path):
+    json_path = project_root / "data" / "output_data" / "summary.json"
+    if not json_path.exists():
+        raise FileNotFoundError(f"summary.json not found at {json_path}")
+    
+    with open(json_path, "r") as f:
+        summary = json.load(f)
+
+    if "spectral_image" not in summary:
+        summary["spectral_image"] = []
+    image_name = Path(image_path).name
+    new_entry = {
+        "title": title,
+        "type": visual_type,
+        "path": image_name
+    } 
+
+    summary["spectral_image"].append(new_entry)
+    with open(json_path, "w") as f:
+        json.dump(summary, f, indent=4)
+
 
 def main():
     # Load spectral data
@@ -99,6 +125,7 @@ def main():
     print(f"Available measurements: {df.index.tolist()}")
     
     # Get name from command line argument or prompt
+    name = None
     file_name = None
     if len(sys.argv) >= 2:
         name = sys.argv[1]
@@ -116,8 +143,12 @@ def main():
     # Plot
     if name.lower() == "all":
         plot_all_measurements(df, output_image)
+        if output_image is not None:
+            adding_visuals_in_json(project_root=project_root, title="All spectral measurements", visual_type="spec_image", image_path=output_image)
     else:
         plot_measurement(df, name, output_image)
+        if output_image is not None:
+            adding_visuals_in_json(project_root=project_root, title="Spectral measurement", visual_type="spec_image", image_path=output_image)
 
 
 if __name__ == "__main__":

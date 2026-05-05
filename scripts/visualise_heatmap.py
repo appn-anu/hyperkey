@@ -7,6 +7,8 @@ arranged in a grid as close to square as possible.
 import load_data as ld
 import numpy as np
 import matplotlib.pyplot as plt
+import json
+from pathlib import Path
 
 
 def find_closest_wavelength(wavelengths, target):
@@ -130,6 +132,27 @@ def create_heatmap(visual_type, visual_values, measurement_names, output_path=No
     
     return grid
 
+def adding_visuals_in_json(project_root, title, visual_type, image_path):
+    json_path = project_root / "data" / "output_data" / "summary.json"
+    if not json_path.exists():
+        raise FileNotFoundError(f"summary.json not found at {json_path}")
+    
+    with open(json_path, "r") as f:
+        summary = json.load(f)
+
+    if "visualisations" not in summary:
+        summary["visualisations"] = []
+    image_name = Path(image_path).name
+    new_entry = {
+        "title": title,
+        "type": visual_type,
+        "path": image_name
+    } 
+
+    summary["visualisations"].append(new_entry)
+    with open(json_path, "w") as f:
+        json.dump(summary, f, indent=4)
+
 
 def main():
     # Get project root and use relative paths
@@ -154,7 +177,7 @@ def main():
     # Create heatmap
     print("\nCreating heatmap...")
     create_heatmap("NDVI", ndvi_values, df.index.tolist(), output_image)
-    
+    adding_visuals_in_json(project_root=project_root, title="NDVI Heatmap", visual_type="heatmap", image_path=output_image)
     print("\nDone!")
 
 

@@ -20,6 +20,12 @@ Generated: 2026-05-04 23:01:11
 
 ## Visualisations
 
-Visualisations are not generated yet. This section will later include:
-- NDVI heatmap
-- Spectral graphs
+This section includes:
+
+###NDVI Heatmap
+![NDVI Heatmap](ndvi_heatmap.png)
+
+
+###All spectral measurements
+![All spectral measurements](all_spectral_measurements.png)
+

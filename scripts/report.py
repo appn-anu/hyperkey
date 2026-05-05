@@ -3,11 +3,43 @@ import os
 import sys
 import argparse
 import json
+import load_data as ld
 from datetime import datetime
 
 
-with open('data\\output_data\\summary.json', 'r') as file:
+project_root = ld.get_project_root()
+json_path = project_root / "data" / "output_data" / "summary.json"
+with open(json_path, 'r') as file:
     data = json.load(file)
+
+visual_section = ""
+if "visualisations" in data and data["visualisations"]:
+    for item in data["visualisations"]:
+        title = item["title"]
+        path = item["path"]
+
+        visual_section += f"""
+###{title}
+![{title}]({path})
+"""
+        
+else: 
+    visual_section = "No visualisation generated yet."
+
+
+spectral_graph = ""
+if "spectral_image" in data and data["spectral_image"]:
+    for item in data["spectral_image"]:
+        title = item["title"]
+        path = item["path"]
+        spectral_graph += f"""
+###{title}
+![{title}]({path})
+"""
+        
+else: 
+    spectral_graph = "No spectral graph generated yet."
+
 
 report_text = f"""
 # HyperKey Processing Report
@@ -31,12 +63,12 @@ Generated: {data["timestamp"]}
 
 ## Visualisations
 
-Visualisations are not generated yet. This section will later include:
-- NDVI heatmap
-- Spectral graphs
+This section includes:
+{visual_section}
+{spectral_graph}
 """
 
-report_path = os.path.join("data", "output_data", "report.md")
+report_path = project_root / "data" / "output_data" / "report.md"
 
 with open(report_path, "w") as file:
     file.write(report_text)
