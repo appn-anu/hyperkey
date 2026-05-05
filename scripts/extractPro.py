@@ -4,6 +4,7 @@ import csv
 import os
 import sys
 import argparse
+import json
 from datetime import datetime
 
 # ---------------------------
@@ -79,7 +80,14 @@ def main():
     args = parser.parse_args()
 
     # 1. Setup Output Directory and Paths
-    default_dir = os.path.join("data", "output_data")
+    # Get the directory where the script is actually located
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Anchor to the project root (assuming script is in 'scripts/' and data is in 'data/')
+    project_root = os.path.abspath(os.path.join(script_dir, ".."))
+    
+    # Define the default output directory relative to the project root
+    default_dir = os.path.join(project_root, "data", "output_data")
     if not os.path.exists(default_dir):
         os.makedirs(default_dir)
 
@@ -104,18 +112,31 @@ def main():
     metadata_files = args.metadata_files
     root_folder = "."
 
+    # --- CHANGES START HERE ---
+    processed_dir = os.path.join(project_root, "data", "processed_data")
+    raw_dir = os.path.join(project_root, "data", "raw_data")
+
     if not metadata_files:
-        csv_files = [f for f in os.listdir('.') if f.lower().endswith('.csv')]
+        # Determine where to search for CSVs
+        search_csv_path = processed_dir if os.path.exists(processed_dir) else "."
+        csv_files = [os.path.join(search_csv_path, f) for f in os.listdir(search_csv_path) if f.lower().endswith('.csv')]
+        
         selected_csv = select_from_list(csv_files, "Metadata CSV")
         if not selected_csv: return
         metadata_files = [selected_csv]
         
-        dirs = [d for d in os.listdir('.') if os.path.isdir(d)]
-        dirs.insert(0, ".")
+        # Determine where to search for Root Folders
+        if os.path.exists(raw_dir):
+            dirs = [raw_dir] + [os.path.join(raw_dir, d) for d in os.listdir(raw_dir) if os.path.isdir(os.path.join(raw_dir, d))]
+        else:
+            dirs = [d for d in os.listdir('.') if os.path.isdir(d)]
+            dirs.insert(0, ".")
+            
         root_folder = select_from_list(dirs, "Root Folder")
     else:
         if args.config:
             root_folder = args.config.split(',')[0].strip() or "."
+    # --- CHANGES END HERE ---
 
     # 3. Read Metadata
     all_rows = []
@@ -234,6 +255,23 @@ def main():
         log_f.write("="*50 + "\n\n")
         for entry in log_entries:
             log_f.write(f"{entry}\n")
+    
+    summary = {
+        "timestamp": get_log_timestamp(),
+        "total_rows": len(all_rows),
+        "matched_files": processed_count,
+        "blank_filenum": skipped_blank,
+        "invalid_filenum": skipped_invalid_format,
+        "missing_sig_files": skipped_missing_file,
+        "output_csv": output_csv,
+        "log_file": log_path
+    }
+
+    summary_path = os.path.join(default_dir, "summary.json")
+    with open(summary_path, "w") as file:
+        json.dump(summary, file, indent=4)
+    
+
 
     # Terminal Output
     print(f"\nProcessing Complete!")
@@ -243,6 +281,7 @@ def main():
     print(f"\nOutputs saved:")
     print(f"- CSV: {output_csv}")
     print(f"- Log: {log_path}")
+    print(f"- JSON: {summary_path}")
 
 if __name__ == "__main__":
     main()
