@@ -103,6 +103,8 @@ def main():
     output_image = project_root / 'data' / 'output_data' / 'hyperspectral.png'
     plot_all_measurements(df, output_image)
 
+    adding_visuals_in_json(project_root, "Hyperspectral Data", "spectral", output_image)
+
 
 if __name__ == "__main__":
     main()

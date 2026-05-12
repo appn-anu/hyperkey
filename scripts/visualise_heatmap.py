@@ -493,6 +493,8 @@ def main():
         rows_list=rows_list,
         ranges_list=ranges_list,
     )
+
+    adding_visuals_in_json(project_root, "NDVI Heatmap", "heatmap", output_image)
     
     print("\nDone!")
 
