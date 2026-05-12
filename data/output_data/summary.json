@@ -1,0 +1,10 @@
+{
+    "timestamp": "2026-05-12 12:38:45",
+    "total_rows": 13,
+    "matched_files": 9,
+    "blank_filenum": 3,
+    "invalid_filenum": 0,
+    "missing_sig_files": 1,
+    "output_csv": "D:\\Masters of computing\\Tech Launcher\\hyperkey\\data\\output_data\\merged_spectral_data.csv",
+    "log_file": "D:\\Masters of computing\\Tech Launcher\\hyperkey\\data\\output_data\\error_log.txt"
+}
