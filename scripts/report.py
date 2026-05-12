@@ -1,50 +1,51 @@
-import csv
-import os
-import sys
-import argparse
 import json
-import load_data as ld
-from datetime import datetime
+from pathlib import Path
+
 import markdown
 import fitz
+import load_data as ld
 
 
+def load_summary_json(project_root):
+    json_path = project_root / "data" / "output_data" / "summary.json"
 
-project_root = ld.get_project_root()
-json_path = project_root / "data" / "output_data" / "summary.json"
-with open(json_path, 'r') as file:
-    data = json.load(file)
+    with open(json_path, "r", encoding="utf-8") as file:
+        return json.load(file)
 
-visual_section = ""
-if "visualisations" in data and data["visualisations"]:
-    for item in data["visualisations"]:
-        title = item["title"]
-        path = item["path"]
 
-        visual_section += f"""
-###{title}
+def build_image_section(data, key, empty_message):
+    section = ""
+
+    if key in data and data[key]:
+        for item in data[key]:
+            title = item["title"]
+            path = item["path"]
+
+            section += f"""
+### {title}
+
 ![{title}]({path})
 """
-        
-else: 
-    visual_section = "No visualisation generated yet."
+    else:
+        section = empty_message
+
+    return section
 
 
-spectral_graph = ""
-if "spectral_image" in data and data["spectral_image"]:
-    for item in data["spectral_image"]:
-        title = item["title"]
-        path = item["path"]
-        spectral_graph += f"""
-###{title}
-![{title}]({path})
-"""
-        
-else: 
-    spectral_graph = "No spectral graph generated yet."
+def generate_markdown_report(data, project_root):
+    visual_section = build_image_section(
+        data,
+        "visualisations",
+        "No visualisation generated yet."
+    )
 
+    spectral_graph = build_image_section(
+        data,
+        "spectral_image",
+        "No spectral graph generated yet."
+    )
 
-report_text = f"""
+    report_text = f"""
 # HyperKey Processing Report
 
 Generated: {data["timestamp"]}
@@ -67,23 +68,29 @@ Generated: {data["timestamp"]}
 ## Visualisations
 
 This section includes:
+
 {visual_section}
+
 {spectral_graph}
 """
 
-report_path = project_root / "data" / "output_data" / "report.md"
+    report_path = project_root / "data" / "output_data" / "report.md"
 
-with open(report_path, "w") as file:
-    file.write(report_text)
+    with open(report_path, "w", encoding="utf-8") as file:
+        file.write(report_text)
+
+    print(f"Markdown report saved to: {report_path}")
+
+    return report_text
 
 
-html_body = markdown.markdown(report_text, extensions=["tables"])
+def generate_html_report(report_text, project_root):
+    html_body = markdown.markdown(report_text, extensions=["tables"])
 
-html_text = f"""
+    html_text = f"""
 <!DOCTYPE html>
 <html>
 <head>
-
     <meta charset="utf-8">
     <title>HyperKey Processing Report</title>
 
@@ -103,7 +110,6 @@ html_text = f"""
             margin: 20px auto;
         }}
     </style>
-
 </head>
 <body>
 {html_body}
@@ -111,10 +117,28 @@ html_text = f"""
 </html>
 """
 
-html_path = project_root / "data" / "output_data" / "report.html"
+    html_path = project_root / "data" / "output_data" / "report.html"
 
-with open(html_path, "w", encoding="utf-8") as file:
-    file.write(html_text)
+    with open(html_path, "w", encoding="utf-8") as file:
+        file.write(html_text)
+
+    print(f"HTML report saved to: {html_path}")
+
+
+def resolve_image_path(image_path_value, project_root, output_dir):
+    image_path = Path(image_path_value)
+
+    if image_path.is_absolute():
+        return image_path
+
+    possible_project_path = project_root / image_path
+
+    if possible_project_path.exists():
+        return possible_project_path
+
+    possible_output_path = output_dir / image_path.name
+
+    return possible_output_path
 
 
 def generate_pdf_from_json(data, project_root):
@@ -127,29 +151,33 @@ def generate_pdf_from_json(data, project_root):
     y = 50
     margin = 50
 
-    def add_text(text, size=11, bold=False, gap=18):
+    def add_text(text, size=11, gap=18):
         nonlocal y, page
 
         if y > 760:
             page = doc.new_page()
             y = 50
 
-        font = "helv"
         page.insert_text(
             (margin, y),
-            text,
+            str(text),
             fontsize=size,
-            fontname=font
+            fontname="helv"
         )
+
         y += gap
 
-    def add_image(image_filename, title):
+    def add_image(image_path_value, title):
         nonlocal y, page
 
-        image_path = output_dir / image_filename
+        image_path = resolve_image_path(
+            image_path_value,
+            project_root,
+            output_dir
+        )
 
         if not image_path.exists():
-            add_text(f"Image missing: {image_filename}")
+            add_text(f"Image missing: {image_path_value}")
             return
 
         if y > 500:
@@ -159,12 +187,17 @@ def generate_pdf_from_json(data, project_root):
         add_text(title, size=13, gap=20)
 
         rect = fitz.Rect(margin, y, 545, y + 250)
-        page.insert_image(rect, filename=str(image_path), keep_proportion=True)
+
+        page.insert_image(
+            rect,
+            filename=str(image_path),
+            keep_proportion=True
+        )
 
         y += 280
 
     add_text("HyperKey Processing Report", size=20, gap=30)
-    add_text(f"Generated: {data['timestamp']}", size=11, gap=25)
+    add_text(f"Generated: {data['timestamp']}", gap=25)
 
     add_text("Processing Summary", size=15, gap=25)
     add_text(f"Total rows in metadata: {data['total_rows']}")
@@ -174,8 +207,8 @@ def generate_pdf_from_json(data, project_root):
     add_text(f"Missing .sig files: {data['missing_sig_files']}", gap=25)
 
     add_text("Generated Files", size=15, gap=25)
-    add_text(f"Merged CSV: {data['output_csv']}", size=11)
-    add_text(f"Log file: {data['log_file']}", size=11, gap=25)
+    add_text(f"Merged CSV: {data['output_csv']}")
+    add_text(f"Log file: {data['log_file']}", gap=25)
 
     add_text("Visualisations", size=15, gap=25)
 
@@ -188,7 +221,20 @@ def generate_pdf_from_json(data, project_root):
     doc.save(pdf_path)
     doc.close()
 
-    print(f"PDF saved to: {pdf_path}")
+    print(f"PDF report saved to: {pdf_path}")
 
 
-generate_pdf_from_json(data, project_root)
+def main():
+    project_root = ld.get_project_root()
+
+    data = load_summary_json(project_root)
+
+    report_text = generate_markdown_report(data, project_root)
+
+    generate_html_report(report_text, project_root)
+
+    generate_pdf_from_json(data, project_root)
+
+
+if __name__ == "__main__":
+    main()
