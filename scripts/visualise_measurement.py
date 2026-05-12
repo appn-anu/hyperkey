@@ -14,6 +14,50 @@ import load_data as ld
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import json
+from pathlib import Path
+
+
+# python visualise_measurement.py all all_spectral_measurements
+# python visualise_measurement.py "HCN1" hcn1_grap
+
+def plot_measurement(df, name, output_path=None):
+    """
+    Plot a single measurement given a Name.
+    
+    Args:
+        df: DataFrame containing spectral data
+        name: The measurement name from the 'Name' column
+        output_path: Optional path to save the plot
+    """
+    if name not in df.index:
+        available_names = df.index.tolist()
+        raise ValueError(f"Measurement '{name}' not found. Available names: {available_names}")
+    
+    # Get the data for this measurement
+    row = df.loc[name]
+    
+    # Get wavelengths (column names) and convert to float
+    wavelengths = np.array([float(col) for col in df.columns])
+    intensities = row.values.astype(float)
+    
+    # Create the plot
+    plt.figure(figsize=(12, 6))
+    plt.plot(wavelengths, intensities, 'b-', linewidth=1)
+    plt.xlabel('Wavelength (nm)', fontsize=12)
+    plt.ylabel('Reflectance (%)', fontsize=12)
+    plt.title(f'Spectral Measurement: {name}', fontsize=14)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    # Save or show
+    if output_path:
+        plt.savefig(output_path, dpi=150, bbox_inches='tight')
+        print(f"Plot saved to: {output_path}")
+    else:
+        plt.show()
+    
+    plt.close()
 
 
 def plot_all_measurements(df, output_path=None):
@@ -48,6 +92,27 @@ def plot_all_measurements(df, output_path=None):
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"Plot saved to: {output_path}")
     plt.close()
+
+def adding_visuals_in_json(project_root, title, visual_type, image_path):
+    json_path = project_root / "data" / "output_data" / "summary.json"
+    if not json_path.exists():
+        raise FileNotFoundError(f"summary.json not found at {json_path}")
+    
+    with open(json_path, "r") as f:
+        summary = json.load(f)
+
+    if "spectral_image" not in summary:
+        summary["spectral_image"] = []
+    image_name = Path(image_path).name
+    new_entry = {
+        "title": title,
+        "type": visual_type,
+        "path": image_name
+    } 
+
+    summary["spectral_image"].append(new_entry)
+    with open(json_path, "w") as f:
+        json.dump(summary, f, indent=4)
 
 
 def main():

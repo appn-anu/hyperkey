@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import sys
+import json
 
 
 def find_closest_wavelength(wavelengths, target):
@@ -371,6 +372,27 @@ def create_heatmap(visual_type, visual_values, measurement_names, output_path=No
     plt.close()
     
     return grid
+
+def adding_visuals_in_json(project_root, title, visual_type, image_path):
+    json_path = project_root / "data" / "output_data" / "summary.json"
+    if not json_path.exists():
+        raise FileNotFoundError(f"summary.json not found at {json_path}")
+    
+    with open(json_path, "r") as f:
+        summary = json.load(f)
+
+    if "visualisations" not in summary:
+        summary["visualisations"] = []
+    image_name = Path(image_path).name
+    new_entry = {
+        "title": title,
+        "type": visual_type,
+        "path": image_name
+    } 
+
+    summary["visualisations"].append(new_entry)
+    with open(json_path, "w") as f:
+        json.dump(summary, f, indent=4)
 
 
 def main():

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
+# python scripts/extractPro.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o mergedTest.csv "
 
 import csv
 import os
-import sys
 import argparse
+import json
 from datetime import datetime
 
 # ---------------------------
@@ -29,7 +30,7 @@ def select_from_list(items, prompt_label):
             idx = int(choice) - 1
             if 0 <= idx < len(items):
                 return items[idx]
-        print(f"Invalid selection. Please enter 0 or 1-{len(items)}.")
+        print(f"Invalid selection. Please enter 0 or 1-{len(items)}. (Press Ctrl+C to exit)")
 
 def is_valid_filenum(val):
     if val is None: return False
@@ -74,7 +75,7 @@ def parse_sig_file(filepath):
 def main():
     parser = argparse.ArgumentParser(description="Extract and Merge Spectral Metadata")
     parser.add_argument('metadata_files', nargs='*', help="One or more metadata CSV files")
-    parser.add_argument('-r', '--config', help="Root folder")
+    parser.add_argument('-r', '--root', help="Root folder")
     parser.add_argument('-o', '--output', help="Optional: Full path or filename for merged CSV output")
     args = parser.parse_args()
 
@@ -133,8 +134,8 @@ def main():
             
         root_folder = select_from_list(dirs, "Root Folder")
     else:
-        if args.config:
-            root_folder = args.config.split(',')[0].strip() or "."
+        if args.root:
+            root_folder = args.root.split(',')[0].strip() or "."
     # --- CHANGES END HERE ---
 
     # 3. Read Metadata
@@ -254,6 +255,23 @@ def main():
         log_f.write("="*50 + "\n\n")
         for entry in log_entries:
             log_f.write(f"{entry}\n")
+    
+    summary = {
+        "timestamp": get_log_timestamp(),
+        "total_rows": len(all_rows),
+        "matched_files": processed_count,
+        "blank_filenum": skipped_blank,
+        "invalid_filenum": skipped_invalid_format,
+        "missing_sig_files": skipped_missing_file,
+        "output_csv": output_csv,
+        "log_file": log_path
+    }
+
+    summary_path = os.path.join(default_dir, "summary.json")
+    with open(summary_path, "w") as file:
+        json.dump(summary, file, indent=4)
+    
+
 
     # Terminal Output
     print(f"\nProcessing Complete!")
@@ -263,6 +281,7 @@ def main():
     print(f"\nOutputs saved:")
     print(f"- CSV: {output_csv}")
     print(f"- Log: {log_path}")
+    print(f"- JSON: {summary_path}")
 
 if __name__ == "__main__":
     main()
