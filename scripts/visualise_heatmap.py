@@ -4,9 +4,13 @@ Reads hyperspectral data from merged_spectral_data.csv and creates a heatmap of 
 arranged in a grid as close to square as possible.
 """
 
+from pathlib import Path
+
 import load_data as ld
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
+import sys
 
 
 def find_closest_wavelength(wavelengths, target):
@@ -69,20 +73,102 @@ def calculate_square_grid(n_measurements):
     return best_rows, best_cols
 
 
-def create_heatmap(visual_type, visual_values, measurement_names, output_path=None):
+def validate_row_range_columns(csv_path):
     """
-    Create a heatmap of specified values in a square-ish grid.
+    Check if CSV contains 'row' and 'range' columns (case-insensitive) and validate them.
+    Returns (rows_list, ranges_list) if valid, (None, None) if columns don't exist.
+    Raises ValueError if columns exist but contain non-integer values.
+    """
+    # Load data without setting index first to check columns properly
+    raw_df = pd.read_csv(csv_path)
+    
+    # Case-insensitive column lookup
+    cols_lower = {col.lower(): col for col in raw_df.columns}
+    
+    has_row = 'row' in cols_lower
+    has_range = 'range' in cols_lower
+    
+    # If neither exists, return None and use square grid
+    if not has_row and not has_range:
+        return None, None
+    
+    # If only one exists, that's an error
+    if has_row != has_range:
+        missing = 'range' if has_row else 'row'
+        raise ValueError(f"Found 'row' column but missing '{missing}' column. Both must exist together.")
+    
+    # Both columns exist - validate them strictly
+    row_col = cols_lower['row']
+    range_col = cols_lower['range']
+    
+    try:
+        row_vals = pd.to_numeric(raw_df[row_col], errors='coerce')
+        range_vals = pd.to_numeric(raw_df[range_col], errors='coerce')
+        
+        if row_vals.isna().any() or range_vals.isna().any():
+            raise ValueError("Found non-numeric values in 'row' or 'range' columns")
+        
+        # Check if all values are integers
+        if not (row_vals == row_vals.astype(int)).all() or not (range_vals == range_vals.astype(int)).all():
+            raise ValueError("All values in 'row' and 'range' columns must be integers")
+        
+        return row_vals.astype(int).tolist(), range_vals.astype(int).tolist()
+    
+    except ValueError as e:
+        raise ValueError(f"Error validating row/range columns: {e}")
+
+
+def organize_grid_by_row_range(visual_values, rows_list, ranges_list):
+    """
+    Organize grid according to specified row and range values (1-indexed).
+    Returns (grid, rows, cols) where grid is organized by row/range.
+    """
+    rows = max(rows_list)
+    cols = max(ranges_list)
+    
+    grid = np.full((rows, cols), np.nan)
+    duplicates = []
+    
+    for idx, (row, range_idx) in enumerate(zip(rows_list, ranges_list)):
+        if idx < len(visual_values):
+            r = row - 1
+            c = range_idx - 1
+            if not np.isnan(grid[r, c]):
+                duplicates.append((row, range_idx))
+            grid[r, c] = visual_values[idx]  # Convert to 0-indexed
+    
+    if duplicates:
+        duplicates_summary = ', '.join(f"({r},{c})" for r, c in sorted(set(duplicates)))
+        print(
+            f"Warning: duplicate row/range coordinates found at {len(duplicates)} position(s). "
+            "Most recent measurements were used for these locations: "
+            f"{duplicates_summary}"
+        )
+    
+    return grid, rows, cols
+
+
+def create_heatmap(visual_type, visual_values, measurement_names, output_path=None, rows_list=None, ranges_list=None):
+    """
+    Create a heatmap of specified values.
+    If rows_list and ranges_list are provided, organize grid by row/range.
+    Otherwise, organize in a square-ish grid.
     """
     n_measurements = len(visual_values)
     
-    # Calculate optimal grid dimensions
-    rows, cols = calculate_square_grid(n_measurements)
-    print(f"\nGrid dimensions: {rows} x {cols} = {rows * cols} cells for {n_measurements} measurements")
-    
-    # Create grid (pad with NaN if needed)
-    grid = np.full(rows * cols, np.nan)
-    grid[:n_measurements] = visual_values
-    grid = grid.reshape(rows, cols)
+    # Determine grid dimensions and organize values
+    if rows_list is not None and ranges_list is not None:
+        grid, rows, cols = organize_grid_by_row_range(visual_values, rows_list, ranges_list)
+        print(f"\nGrid dimensions: {rows} x {cols} (organized by row/range metadata)")
+    else:
+        # Calculate optimal grid dimensions
+        rows, cols = calculate_square_grid(n_measurements)
+        print(f"\nGrid dimensions: {rows} x {cols} = {rows * cols} cells for {n_measurements} measurements")
+        
+        # Create grid (pad with NaN if needed)
+        grid = np.full(rows * cols, np.nan)
+        grid[:n_measurements] = visual_values
+        grid = grid.reshape(rows, cols)
     
     # Create the heatmap
     _, ax = plt.subplots(figsize=(10, 8))
@@ -107,8 +193,18 @@ def create_heatmap(visual_type, visual_values, measurement_names, output_path=No
     # Add measurement names as text in each cell
     for i in range(rows):
         for j in range(cols):
-            cell_idx = i * cols + j
-            if cell_idx < n_measurements:
+            if rows_list is not None and ranges_list is not None:
+                # For row/range organized grid, find which measurement is at this position
+                # Note: row/range are 1-indexed, so convert back to 1-indexed for comparison
+                cell_idx = None
+                for idx, (row, range_idx) in enumerate(zip(rows_list, ranges_list)):
+                    if row - 1 == i and range_idx - 1 == j:
+                        cell_idx = idx
+                        break
+            else:
+                cell_idx = i * cols + j
+            
+            if cell_idx is not None and cell_idx < n_measurements:
                 # Get short name from measurement
                 name = measurement_names[cell_idx]
                 # Extract just the number part for display
@@ -134,12 +230,47 @@ def create_heatmap(visual_type, visual_values, measurement_names, output_path=No
 def main():
     # Get project root and use relative paths
     project_root = ld.get_project_root()
-    input_csv = project_root / 'data' / 'output_data' / 'merged_spectral_data.csv'
+    if len(sys.argv) > 1:
+        raw_path = ' '.join(sys.argv[1:])
+        input_csv = Path(raw_path)
+
+        if not input_csv.exists():
+            candidate_paths = [
+                Path.cwd() / raw_path,
+                project_root / raw_path,
+            ]
+            if input_csv.parts and input_csv.parts[0] == project_root.name:
+                candidate_paths.append(project_root.joinpath(*input_csv.parts[1:]))
+
+            input_csv = next((p for p in candidate_paths if p.exists()), input_csv)
+    else:
+        input_csv = project_root / 'data' / 'output_data' / 'merged_spectral_data.csv'
+
     output_image = project_root / 'data' / 'output_data' / 'ndvi_heatmap.png'
+
+    if not input_csv.exists():
+        raise FileNotFoundError(
+            f"Input CSV not found: {input_csv}\n"
+            "Please provide an absolute path, or a valid relative path from this folder. Example:\n"
+            "  python visualise_heatmap.py \"C:/Users/.../hyperkey/data/raw_data/SVC sample files/sample-combined-file.csv\"\n"
+            "You can also use a project-relative path from the scripts folder:\n"
+            "  python visualise_heatmap.py \"data/raw_data/SVC sample files/sample-combined-file.csv\""
+        )
     
     print("Loading spectral data...")
     df = ld.load_spectral_data(input_csv)
     print(f"Loaded {len(df)} measurements with {len(df.columns)} wavelength bands")
+    
+    # Check for row and range columns
+    rows_list = None
+    ranges_list = None
+    try:
+        rows_list, ranges_list = validate_row_range_columns(input_csv)
+        if rows_list is not None:
+            print("Found valid 'row' and 'range' columns - will organize grid by coordinates")
+    except ValueError as e:
+        print(f"Error: {e}")
+        raise
     
     print("\nCalculating NDVI...")
     ndvi_values = calculate_ndvi(df)
@@ -153,7 +284,7 @@ def main():
     
     # Create heatmap
     print("\nCreating heatmap...")
-    create_heatmap("NDVI", ndvi_values, df.index.tolist(), output_image)
+    create_heatmap("NDVI", ndvi_values, df.index.tolist(), output_image, rows_list, ranges_list)
     
     print("\nDone!")
 

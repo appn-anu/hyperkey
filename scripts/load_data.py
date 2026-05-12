@@ -18,8 +18,8 @@ def is_valid_column(col_str):
 
 def load_spectral_data(csv_path):
     """Load the spectral data from CSV file."""
-    # Read CSV, using 'Name' as the index
-    df = pd.read_csv(csv_path, index_col='Name')
+    # Read CSV, using the first column as the index
+    df = pd.read_csv(csv_path, index_col=0)
     
     # Filter to only keep valid numeric wavelength columns
     # Remove metadata columns and unnamed/empty columns
