@@ -1,0 +1,24 @@
+{
+    "timestamp": "2026-05-05 12:18:50",
+    "total_rows": 25,
+    "matched_files": 8,
+    "blank_filenum": 7,
+    "invalid_filenum": 0,
+    "missing_sig_files": 1,
+    "output_csv": "C:\\Users\\mathu\\hyperkey\\data\\output_data\\merged_spectral_data.csv",
+    "log_file": "C:\\Users\\mathu\\hyperkey\\data\\output_data\\error_log.txt",
+    "visualisations": [
+        {
+            "title": "NDVI Heatmap",
+            "type": "heatmap",
+            "path": "ndvi_heatmap.png"
+        }
+    ],
+    "spectral_image": [
+        {
+            "title": "All spectral measurements",
+            "type": "spec_image",
+            "path": "all_spectral_measurements.png"
+        }
+    ]
+}

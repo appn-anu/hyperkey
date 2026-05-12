@@ -1,0 +1,27 @@
+LOG REPORT - Generated: 2026-05-05 12:18:50
+
+Success Metrics!!
+Total Rows in Metadata: 25
+Successfully Matched Files: 8
+Rows with Blank FileNum: 7
+Rows with Invalid FileNum Format: 0
+Rows with Missing .sig Files: 10
+==================================================
+
+Row 9: File missing at data/raw_data/2026-03-24-S1-Techlauncher/HR.032426.0100.sig
+Row 10: Blank FileNum found.
+Row 11: Blank FileNum found.
+Row 12: Blank FileNum found.
+Row 13: File missing at data/raw_data/SVC sample files\Day1/HR.090323.0002.sig
+Row 14: File missing at data/raw_data/D:/Masters of computing/Tech Launcher/hyperkey/data/raw_data/2026-03-24-S1-Techlauncher/HR.032426.0002.sig
+Row 15: File missing at data/raw_data/D:/Masters of computing/Tech Launcher/hyperkey/data/raw_data/2026-03-24-S1-Techlauncher/HR.032426.0005.sig
+Row 16: File missing at data/raw_data/D:/Masters of computing/Tech Launcher/hyperkey/data/raw_data/2026-03-24-S1-Techlauncher/HR.032426.0007.sig
+Row 17: File missing at data/raw_data/D:/Masters of computing/Tech Launcher/hyperkey/data/raw_data/2026-03-24-S1-Techlauncher/HR.032426.0008.sig
+Row 18: File missing at data/raw_data/D:/Masters of computing/Tech Launcher/hyperkey/data/raw_data/2026-03-24-S1-Techlauncher/HR.032426.0009.sig
+Row 19: File missing at data/raw_data/D:/Masters of computing/Tech Launcher/hyperkey/data/raw_data/2026-03-24-S1-Techlauncher/HR.032426.0010.sig
+Row 20: File missing at data/raw_data/D:/Masters of computing/Tech Launcher/hyperkey/data/raw_data/2026-03-24-S1-Techlauncher/HR.032426.0011.sig
+Row 21: Blank FileNum found.
+Row 22: Blank FileNum found.
+Row 23: Blank FileNum found.
+Row 24: Blank FileNum found.
+Row 25: File missing at data/raw_data/D:/Masters of computing/Tech Launcher/hyperkey/data/raw_data/SVC sample files/HR.090323.0002.sig
