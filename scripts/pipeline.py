@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-# python scripts/extractPro.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o mergedTest.csv "
+# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o mergedTest.csv 
+# python pipeline.py "../data/processed_data/GH7-test-SubFolder.csv" -r "../data/raw_data" -o "mergedTest.csv"
 
 import csv
 import os
 import argparse
 import json
 from datetime import datetime
+import visualise_heatmap
+import visualise_measurement
+import subprocess
+import sys
+import report
 
 # ---------------------------
 # Helpers & Formatting
@@ -73,7 +79,8 @@ def parse_sig_file(filepath):
 # Main Logic
 # ---------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Extract and Merge Spectral Metadata")
+    parser = argparse.ArgumentParser(description="Extract and Merge Spectral " \
+    "data")
     parser.add_argument('metadata_files', nargs='*', help="One or more metadata CSV files")
     parser.add_argument('-r', '--root', help="Root folder")
     parser.add_argument('-o', '--output', help="Optional: Full path or filename for merged CSV output")
@@ -282,6 +289,83 @@ def main():
     print(f"- CSV: {output_csv}")
     print(f"- Log: {log_path}")
     print(f"- JSON: {summary_path}")
+    return output_csv
 
 if __name__ == "__main__":
-    main()
+    output_csv = main()
+    # -----------------------------------
+    # RUN FOLLOW-UP SCRIPTS SEQUENTIALLY
+    # -----------------------------------
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    heatmap_script = os.path.join(
+        script_dir,
+        "visualise_heatmap.py"
+    )
+
+    measurement_script = os.path.join(
+        script_dir,
+        "visualise_measurement.py"
+    )
+
+    report_script = os.path.join(
+        script_dir,
+        "report.py"
+    )
+
+    # -----------------------------------
+    # HEATMAP
+    # -----------------------------------
+
+    print("\nRunning visualise_heatmap.py ...")
+
+    heatmap_cmd = [
+        sys.executable,
+        heatmap_script
+    ]
+
+    if output_csv:
+        heatmap_cmd.append(output_csv)
+
+    subprocess.run(
+        heatmap_cmd,
+        check=True
+    )
+
+    # -----------------------------------
+    # MEASUREMENT VISUALISATION
+    # -----------------------------------
+
+    print("\nRunning visualise_measurement.py ...")
+
+    measurement_cmd = [
+        sys.executable,
+        measurement_script
+    ]
+
+    if output_csv:
+        measurement_cmd.append(output_csv)
+
+    subprocess.run(
+        measurement_cmd,
+        check=True
+    )
+
+    # -----------------------------------
+    # REPORT
+    # -----------------------------------
+
+    print("\nRunning report.py ...")
+
+    report_cmd = [
+        sys.executable,
+        report_script
+    ]
+
+    subprocess.run(
+        report_cmd,
+        check=True
+    )
+
+    print("\nFULL PIPELINE COMPLETED!")
