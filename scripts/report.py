@@ -83,8 +83,27 @@ html_text = f"""
 <!DOCTYPE html>
 <html>
 <head>
+
     <meta charset="utf-8">
     <title>HyperKey Processing Report</title>
+
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: auto;
+            padding: 20px;
+            line-height: 1.6;
+        }}
+
+        img {{
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 20px auto;
+        }}
+    </style>
+
 </head>
 <body>
 {html_body}
