@@ -75,7 +75,7 @@ def parse_sig_file(filepath):
 def main():
     parser = argparse.ArgumentParser(description="Extract and Merge Spectral Metadata")
     parser.add_argument('metadata_files', nargs='*', help="One or more metadata CSV files")
-    parser.add_argument('-r', '--config', help="Root folder")
+    parser.add_argument('-r', '--root', help="Root folder")
     parser.add_argument('-o', '--output', help="Optional: Full path or filename for merged CSV output")
     args = parser.parse_args()
 
@@ -134,8 +134,8 @@ def main():
             
         root_folder = select_from_list(dirs, "Root Folder")
     else:
-        if args.config:
-            root_folder = args.config.split(',')[0].strip() or "."
+        if args.root:
+            root_folder = args.root.split(',')[0].strip() or "."
     # --- CHANGES END HERE ---
 
     # 3. Read Metadata
