@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# python scripts/extractPro.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o mergedTest.csv "
 
 import csv
 import os
