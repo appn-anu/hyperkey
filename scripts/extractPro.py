@@ -2,7 +2,6 @@
 
 import csv
 import os
-import sys
 import argparse
 import json
 from datetime import datetime
@@ -30,7 +29,7 @@ def select_from_list(items, prompt_label):
             idx = int(choice) - 1
             if 0 <= idx < len(items):
                 return items[idx]
-        print(f"Invalid selection. Please enter 0 or 1-{len(items)}.")
+        print(f"Invalid selection. Please enter 0 or 1-{len(items)}. (Press Ctrl+C to exit)")
 
 def is_valid_filenum(val):
     if val is None: return False
