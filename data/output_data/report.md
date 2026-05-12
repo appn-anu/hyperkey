@@ -1,15 +1,15 @@
 
 # HyperKey Processing Report
 
-Generated: 2026-05-04 23:01:11
+Generated: 2026-05-05 12:18:50
 
 ## Processing Summary
 
 | Metric | Value |
 |---|---:|
-| Total rows in metadata | 13 |
-| Successfully matched files | 9 |
-| Blank FileNum rows | 3 |
+| Total rows in metadata | 25 |
+| Successfully matched files | 8 |
+| Blank FileNum rows | 7 |
 | Invalid FileNum rows | 0 |
 | Missing .sig files | 1 |
 
