@@ -2,6 +2,9 @@
 Heatmap Visualisation Script
 Reads hyperspectral data from merged_spectral_data.csv and creates a heatmap of NDVI values
 arranged in a grid as close to square as possible.
+
+Args:
+    python visualise_heatmap.py [input_csv] [-l location_file]
 """
 
 from pathlib import Path
@@ -118,6 +121,140 @@ def validate_row_range_columns(csv_path):
         raise ValueError(f"Error validating row/range columns: {e}")
 
 
+def parse_location_grid(grid_df, measurement_names):
+    """Parse a headerless grid location file into mapping of measurement -> (row, col)."""
+    location_mapping = {}
+    duplicate_measurements = []
+
+    for i, row in enumerate(grid_df.itertuples(index=False, name=None)):
+        for j, cell in enumerate(row):
+            if pd.isna(cell) or str(cell).strip() == '':
+                continue
+            measurement = str(cell).strip()
+            if measurement in location_mapping:
+                duplicate_measurements.append(measurement)
+            location_mapping[measurement] = (i + 1, j + 1)
+
+    if duplicate_measurements:
+        duplicates = ', '.join(sorted(set(duplicate_measurements)))
+        raise ValueError(
+            f"Duplicate measurement names found in location file: {duplicates}. "
+            "Each measurement must appear only once."
+        )
+
+    # Filter to only include measurements that are in the location file
+    filtered_mapping = {m: location_mapping[m] for m in measurement_names if m in location_mapping}
+    
+    missing_measurements = [m for m in measurement_names if m not in location_mapping]
+    if missing_measurements:
+        print(
+            f"Warning: {len(missing_measurements)} measurement(s) not found in location file. "
+            f"They will be excluded from the heatmap. Missing: "
+            f"{missing_measurements[:5]}{'...' if len(missing_measurements) > 5 else ''}"
+        )
+
+    return filtered_mapping
+
+
+def load_location_mapping(location_path, measurement_names):
+    """Load a location file and map each measurement name to a grid coordinate."""
+    location_df = pd.read_csv(location_path, header=0)
+    cols_lower = {col.lower(): col for col in location_df.columns}
+
+    if 'row' in cols_lower and 'range' in cols_lower:
+        row_col = cols_lower['row']
+        range_col = cols_lower['range']
+
+        row_vals = pd.to_numeric(location_df[row_col], errors='coerce')
+        range_vals = pd.to_numeric(location_df[range_col], errors='coerce')
+
+        if row_vals.isna().any() or range_vals.isna().any():
+            raise ValueError("Found non-numeric values in location file 'row' or 'range' columns")
+
+        if not (row_vals == row_vals.astype(int)).all() or not (range_vals == range_vals.astype(int)).all():
+            raise ValueError("All values in location file 'row' and 'range' columns must be integers")
+
+        row_vals = row_vals.astype(int)
+        range_vals = range_vals.astype(int)
+
+        # Filter to only include measurements that are in the location file
+        filtered_mapping = {
+            measurement: (row_vals.loc[measurement], range_vals.loc[measurement])
+            for measurement in measurement_names if measurement in location_df.index
+        }
+        
+        missing_measurements = [m for m in measurement_names if m not in location_df.index]
+        if missing_measurements:
+            print(
+                f"Warning: {len(missing_measurements)} measurement(s) not found in location file. "
+                f"They will be excluded from the heatmap. Missing: "
+                f"{missing_measurements[:5]}{'...' if len(missing_measurements) > 5 else ''}"
+            )
+
+        extra_measurements = [m for m in location_df.index if m not in measurement_names]
+        if extra_measurements:
+            print(
+                f"Warning: location file contains {len(extra_measurements)} extra measurement(s) not found in spectral data. "
+                f"They will be ignored. Example: {extra_measurements[:5]}{'...' if len(extra_measurements) > 5 else ''}"
+            )
+
+        return filtered_mapping
+
+    # Fallback: treat the file as a headerless grid
+    location_df = pd.read_csv(location_path, header=None)
+    return parse_location_grid(location_df, measurement_names)
+
+
+def parse_cli_args(argv):
+    """Parse command-line arguments, supporting -l/--location for a location file."""
+    input_parts = []
+    location_path = None
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in ('-l', '--location'):
+            if i + 1 >= len(argv):
+                raise ValueError("Location file must be provided after -l or --location")
+            location_path = argv[i + 1]
+            i += 2
+        else:
+            input_parts.append(arg)
+            i += 1
+    input_path = Path(' '.join(input_parts)) if input_parts else None
+    return input_path, location_path
+
+
+def organize_grid_by_location(visual_values, measurement_names, location_mapping):
+    """Organize grid according to a provided location mapping."""
+    max_row = max(row for row, _ in location_mapping.values())
+    max_col = max(col for _, col in location_mapping.values())
+    rows = max_row
+    cols = max_col
+    
+    grid = np.full((rows, cols), np.nan)
+    position_to_idx = {}
+    duplicates = []
+    
+    for idx, measurement in enumerate(measurement_names):
+        row, col = location_mapping[measurement]
+        r = row - 1
+        c = col - 1
+        if not np.isnan(grid[r, c]):
+            duplicates.append((row, col))
+        grid[r, c] = visual_values[idx]
+        position_to_idx[(r, c)] = idx
+    
+    if duplicates:
+        duplicates_summary = ', '.join(f"({r},{c})" for r, c in sorted(set(duplicates)))
+        print(
+            f"Warning: duplicate location coordinates found at {len(duplicates)} position(s). "
+            "Most recent measurements were used for these locations: "
+            f"{duplicates_summary}"
+        )
+    
+    return grid, rows, cols, position_to_idx
+
+
 def organize_grid_by_row_range(visual_values, rows_list, ranges_list):
     """
     Organize grid according to specified row and range values (1-indexed).
@@ -148,16 +285,23 @@ def organize_grid_by_row_range(visual_values, rows_list, ranges_list):
     return grid, rows, cols
 
 
-def create_heatmap(visual_type, visual_values, measurement_names, output_path=None, rows_list=None, ranges_list=None):
+def create_heatmap(visual_type, visual_values, measurement_names, output_path=None, location_mapping=None, rows_list=None, ranges_list=None):
     """
     Create a heatmap of specified values.
+    If location_mapping is provided, organize grid by location file.
     If rows_list and ranges_list are provided, organize grid by row/range.
     Otherwise, organize in a square-ish grid.
     """
     n_measurements = len(visual_values)
+    position_to_idx = None
     
     # Determine grid dimensions and organize values
-    if rows_list is not None and ranges_list is not None:
+    if location_mapping is not None:
+        grid, rows, cols, position_to_idx = organize_grid_by_location(
+            visual_values, measurement_names, location_mapping
+        )
+        print(f"\nGrid dimensions: {rows} x {cols} (organized by location file)")
+    elif rows_list is not None and ranges_list is not None:
         grid, rows, cols = organize_grid_by_row_range(visual_values, rows_list, ranges_list)
         print(f"\nGrid dimensions: {rows} x {cols} (organized by row/range metadata)")
     else:
@@ -193,7 +337,9 @@ def create_heatmap(visual_type, visual_values, measurement_names, output_path=No
     # Add measurement names as text in each cell
     for i in range(rows):
         for j in range(cols):
-            if rows_list is not None and ranges_list is not None:
+            if position_to_idx is not None:
+                cell_idx = position_to_idx.get((i, j))
+            elif rows_list is not None and ranges_list is not None:
                 # For row/range organized grid, find which measurement is at this position
                 # Note: row/range are 1-indexed, so convert back to 1-indexed for comparison
                 cell_idx = None
@@ -230,18 +376,22 @@ def create_heatmap(visual_type, visual_values, measurement_names, output_path=No
 def main():
     # Get project root and use relative paths
     project_root = ld.get_project_root()
-    if len(sys.argv) > 1:
-        raw_path = ' '.join(sys.argv[1:])
-        input_csv = Path(raw_path)
+    location_mapping = None
+    raw_input_path = None
+    raw_location_path = None
 
+    if len(sys.argv) > 1:
+        raw_input_path, raw_location_path = parse_cli_args(sys.argv[1:])
+
+    if raw_input_path:
+        input_csv = Path(raw_input_path)
         if not input_csv.exists():
             candidate_paths = [
-                Path.cwd() / raw_path,
-                project_root / raw_path,
+                Path.cwd() / raw_input_path,
+                project_root / raw_input_path,
             ]
             if input_csv.parts and input_csv.parts[0] == project_root.name:
                 candidate_paths.append(project_root.joinpath(*input_csv.parts[1:]))
-
             input_csv = next((p for p in candidate_paths if p.exists()), input_csv)
     else:
         input_csv = project_root / 'data' / 'output_data' / 'merged_spectral_data.csv'
@@ -261,13 +411,30 @@ def main():
     df = ld.load_spectral_data(input_csv)
     print(f"Loaded {len(df)} measurements with {len(df.columns)} wavelength bands")
     
-    # Check for row and range columns
     rows_list = None
     ranges_list = None
     try:
-        rows_list, ranges_list = validate_row_range_columns(input_csv)
-        if rows_list is not None:
-            print("Found valid 'row' and 'range' columns - will organize grid by coordinates")
+        if raw_location_path:
+            location_csv = Path(raw_location_path)
+            if not location_csv.exists():
+                candidate_paths = [
+                    Path.cwd() / raw_location_path,
+                    project_root / raw_location_path,
+                ]
+                if location_csv.parts and location_csv.parts[0] == project_root.name:
+                    candidate_paths.append(project_root.joinpath(*location_csv.parts[1:]))
+                location_csv = next((p for p in candidate_paths if p.exists()), location_csv)
+
+            if not location_csv.exists():
+                raise FileNotFoundError(f"Location file not found: {location_csv}")
+
+            print(f"Loading location file: {location_csv}")
+            location_mapping = load_location_mapping(location_csv, df.index.tolist())
+            print("Using location file ordering for grid placement.")
+        else:
+            rows_list, ranges_list = validate_row_range_columns(input_csv)
+            if rows_list is not None:
+                print("Found valid 'row' and 'range' columns - will organize grid by coordinates")
     except ValueError as e:
         print(f"Error: {e}")
         raise
@@ -284,7 +451,26 @@ def main():
     
     # Create heatmap
     print("\nCreating heatmap...")
-    create_heatmap("NDVI", ndvi_values, df.index.tolist(), output_image, rows_list, ranges_list)
+    if location_mapping is not None:
+        # Filter data to only include measurements present in location mapping
+        included_measurements = list(location_mapping.keys())
+        included_indices = [df.index.tolist().index(m) for m in included_measurements]
+        filtered_ndvi = ndvi_values[included_indices]
+        filtered_names = included_measurements
+        print(f"Using {len(included_measurements)} measurements found in location file.")
+    else:
+        filtered_ndvi = ndvi_values
+        filtered_names = df.index.tolist()
+    
+    create_heatmap(
+        "NDVI",
+        filtered_ndvi,
+        filtered_names,
+        output_image,
+        location_mapping=location_mapping,
+        rows_list=rows_list,
+        ranges_list=ranges_list,
+    )
     
     print("\nDone!")
 
