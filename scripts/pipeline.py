@@ -7,8 +7,8 @@
 
 import csv
 import os
-import argparse
 import json
+import sys
 import importlib
 from datetime import datetime
 
@@ -28,10 +28,7 @@ def get_date_stamp():
 def get_output_name(output_name):
     """
     Return the default output name or the custom name provided through -o/--output.
-
-    Note:
-    - If the user gives -o mergedTest, output becomes mergedTest.csv
-    - If the user gives -o mergedTest.csv, output becomes mergedTest.csv.csv
+    The .csv extension is added later while generating the merged dataset.
     """
     if output_name is None:
         return f"merged_spectral_data_{get_date_stamp()}"
@@ -42,6 +39,113 @@ def get_output_name(output_name):
         raise ValueError("Output name cannot be empty.")
 
     return cleaned_name
+
+
+def print_help():
+    help_text = """
+Usage:
+  python scripts/pipeline.py [METADATA_CSV ...] [-r ROOT_FOLDER] [-o OUTPUT_NAME]
+  python scripts/pipeline.py -h
+
+Description:
+  Extract and merge spectral data from metadata CSV files and .sig files.
+  After creating the merged CSV, the pipeline runs visualizations and report generation sequentially.
+
+Arguments:
+  METADATA_CSV
+      One or more metadata CSV files.
+      If omitted, the CLI selection menu is shown.
+
+Options:
+  -h, --help
+      Show this help message and exit.
+
+  -r, --root ROOT_FOLDER
+      Root folder containing the .sig files.
+      If omitted, current directory is used.
+
+  -o, --output OUTPUT_NAME
+      Optional merged dataset name only.
+      Do not include a path.
+      The .csv extension is added automatically.
+
+Examples:
+  python scripts/pipeline.py -h
+
+  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data
+
+  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o mergedTest
+
+Notes:
+  - If -o/--output is not provided, the default output is:
+    merged_spectral_data_DDMMYYYY.csv
+
+  - If -o/--output is provided, the summary JSON includes:
+    "custom_output_name": "your_output_name"
+
+  - The visualization modules are called through their main() functions.
+    Their sys.argv is set like this:
+    visualise_heatmap.py <merged_csv_path> -n <output_name>
+    visualise_measurement.py <merged_csv_path> -n <output_name>
+"""
+    print(help_text.strip())
+
+
+def parse_pipeline_cli_args(argv):
+    """
+    Parse command-line arguments using sys.argv style logic.
+
+    Supported:
+      -h / --help
+      -r / --root
+      -o / --output
+
+    Everything else is treated as a metadata CSV path.
+    """
+    metadata_files = []
+    root_folder = None
+    output_name = None
+
+    i = 0
+
+    while i < len(argv):
+        arg = argv[i]
+
+        if arg in ("-h", "--help"):
+            return {
+                "help": True,
+                "metadata_files": [],
+                "root": None,
+                "output": None
+            }
+
+        elif arg in ("-r", "--root"):
+            if i + 1 >= len(argv):
+                raise ValueError("Root folder must be provided after -r or --root")
+
+            root_folder = argv[i + 1]
+            i += 2
+
+        elif arg in ("-o", "--output"):
+            if i + 1 >= len(argv):
+                raise ValueError("Output name must be provided after -o or --output")
+
+            output_name = argv[i + 1]
+            i += 2
+
+        elif arg.startswith("-"):
+            raise ValueError(f"Unknown option: {arg}")
+
+        else:
+            metadata_files.append(arg)
+            i += 1
+
+    return {
+        "help": False,
+        "metadata_files": metadata_files,
+        "root": root_folder,
+        "output": output_name
+    }
 
 
 def select_from_list(items, prompt_label):
@@ -56,6 +160,7 @@ def select_from_list(items, prompt_label):
 
         if choice == "0":
             manual_val = input(f"Type the manual value for {prompt_label}: ").strip()
+
             if manual_val:
                 return manual_val
 
@@ -64,6 +169,7 @@ def select_from_list(items, prompt_label):
 
         if choice.isdigit():
             idx = int(choice) - 1
+
             if 0 <= idx < len(items):
                 return items[idx]
 
@@ -125,24 +231,32 @@ def parse_sig_file(filepath):
         return None, None
 
 
-def run_module_main(module_name, display_name, args=None):
+def run_module_main(module_name, display_name, argv=None):
     """
     Import a module and call its main() function directly.
 
-    This avoids subprocess execution and keeps the pipeline running sequentially.
+    This avoids subprocess execution.
+
+    For modules that use sys.argv internally, this function temporarily sets sys.argv.
+    Example for visualization modules:
+      sys.argv = ["visualise_heatmap.py", output_csv, "-n", output_csv_name]
     """
-    if args is None:
-        args = []
+    if argv is None:
+        argv = []
 
     print(f"\nRunning {display_name} ...")
 
+    old_argv = sys.argv[:]
+
     try:
+        sys.argv = [display_name] + argv
+
         module = importlib.import_module(module_name)
 
         if not hasattr(module, "main"):
             raise AttributeError(f"{display_name} does not have a main() function.")
 
-        module.main(*args)
+        module.main()
 
         print(f"{display_name} completed successfully.")
 
@@ -151,50 +265,27 @@ def run_module_main(module_name, display_name, args=None):
         print(f"Error: {e}")
         raise
 
+    finally:
+        sys.argv = old_argv
+
 
 # ---------------------------
 # Main Logic
 # ---------------------------
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Extract and merge spectral data from metadata CSV files and .sig files.",
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog=(
-            "Examples:\n"
-            "  python scripts/pipeline.py -h\n"
-            "  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data\n"
-            "  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o mergedTest\n\n"
-            "Notes:\n"
-            "  - If -o/--output is not provided, the default output is:\n"
-            "    merged_spectral_data_DDMMYYYY.csv\n"
-            "  - If -o/--output is provided, pass only the output name, not a path.\n"
-            "  - The .csv extension is added automatically.\n"
-        )
-    )
+    try:
+        cli_args = parse_pipeline_cli_args(sys.argv[1:])
+    except ValueError as e:
+        print(f"Argument error: {e}")
+        print("Use -h or --help to see usage.")
+        return None
 
-    parser.add_argument(
-        "metadata_files",
-        nargs="*",
-        metavar="METADATA_CSV",
-        help="One or more metadata CSV files. If omitted, the CLI selection menu is shown."
-    )
-
-    parser.add_argument(
-        "-r",
-        "--root",
-        metavar="ROOT_FOLDER",
-        help="Root folder containing the .sig files. If omitted, current directory is used."
-    )
-
-    parser.add_argument(
-        "-o",
-        "--output",
-        metavar="OUTPUT_NAME",
-        help="Optional merged dataset name only. Do not include a path. The .csv extension is added automatically."
-    )
-
-    args = parser.parse_args()
+    if cli_args["help"]:
+        print_help()
+        return {
+            "help_requested": True
+        }
 
     # ---------------------------
     # 1. Setup Output Directory and Paths
@@ -203,11 +294,14 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.abspath(os.path.join(script_dir, ".."))
 
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+
     default_dir = os.path.join(project_root, "data", "output_data")
     os.makedirs(default_dir, exist_ok=True)
 
     try:
-        output_csv_name = get_output_name(args.output)
+        output_csv_name = get_output_name(cli_args["output"])
     except ValueError as e:
         print(f"Invalid output name: {e}")
         return None
@@ -222,7 +316,7 @@ def main():
     # 2. Selection Phase
     # ---------------------------
 
-    metadata_files = args.metadata_files
+    metadata_files = cli_args["metadata_files"]
     root_folder = "."
 
     processed_dir = os.path.join(project_root, "data", "processed_data")
@@ -260,8 +354,8 @@ def main():
         root_folder = select_from_list(dirs, "Root Folder")
 
     else:
-        if args.root:
-            root_folder = args.root.split(",")[0].strip() or "."
+        if cli_args["root"]:
+            root_folder = cli_args["root"].split(",")[0].strip() or "."
         else:
             print("Warning: root folder not given. Using current directory '.'")
 
@@ -444,7 +538,7 @@ def main():
         "log_file": log_path
     }
 
-    if args.output:
+    if cli_args["output"]:
         summary["custom_output_name"] = output_csv_name
 
     with open(summary_path, "w") as file:
@@ -465,6 +559,7 @@ def main():
     print(f"- JSON: {summary_path}")
 
     return {
+        "help_requested": False,
         "output_csv": output_csv,
         "output_csv_name": output_csv_name,
         "script_dir": script_dir
@@ -478,6 +573,9 @@ if __name__ == "__main__":
         print("\nPipeline stopped because main processing failed.")
         raise SystemExit(1)
 
+    if result.get("help_requested"):
+        raise SystemExit(0)
+
     output_csv = result["output_csv"]
     output_csv_name = result["output_csv_name"]
 
@@ -489,19 +587,19 @@ if __name__ == "__main__":
         run_module_main(
             "visualise_heatmap",
             "visualise_heatmap.py",
-            args=[output_csv, output_csv_name]
+            argv=[output_csv, "-n", output_csv_name]
         )
 
         run_module_main(
             "visualise_measurement",
             "visualise_measurement.py",
-            args=[output_csv, output_csv_name]
+            argv=[output_csv, "-n", output_csv_name]
         )
 
         run_module_main(
             "report",
             "report.py",
-            args=[]
+            argv=[]
         )
 
     except Exception:
