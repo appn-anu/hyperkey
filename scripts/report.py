@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
-
 import markdown
 import fitz
+
 import load_data as ld
 
 # This method loads the summary.json file that has success matrix and visual data path
