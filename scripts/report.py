@@ -5,14 +5,15 @@ import markdown
 import fitz
 import load_data as ld
 
-
+# This method loads the summary.json file that has success matrix and visual data path
 def load_summary_json(project_root):
     json_path = project_root / "data" / "output_data" / "summary.json"
 
     with open(json_path, "r", encoding="utf-8") as file:
         return json.load(file)
 
-
+# This method parses the image data present in the summary.json and extract the image path 
+# and title. 
 def build_image_section(data, key, empty_message):
     section = ""
 
@@ -31,7 +32,8 @@ def build_image_section(data, key, empty_message):
 
     return section
 
-
+# This method generates the markdown file from the data available from json file and saves it in the 
+# output_data directory
 def generate_markdown_report(data, project_root):
     visual_section = build_image_section(
         data,
@@ -83,7 +85,8 @@ This section includes:
 
     return report_text
 
-
+# This method uses the markdown file to generate the html file saves it in the 
+# output_data directory 
 def generate_html_report(report_text, project_root):
     html_body = markdown.markdown(report_text, extensions=["tables"])
 
@@ -124,7 +127,8 @@ def generate_html_report(report_text, project_root):
 
     print(f"HTML report saved to: {html_path}")
 
-
+# This function is trying to find the correct location of an image file 
+# based on the path stored in image_path_value.
 def resolve_image_path(image_path_value, project_root, output_dir):
     image_path = Path(image_path_value)
 
@@ -140,7 +144,8 @@ def resolve_image_path(image_path_value, project_root, output_dir):
 
     return possible_output_path
 
-
+# This method generates a pdf from the json file and saves it in the 
+# output_data directory
 def generate_pdf_from_json(data, project_root):
     output_dir = project_root / "data" / "output_data"
     pdf_path = output_dir / "report.pdf"
@@ -223,7 +228,8 @@ def generate_pdf_from_json(data, project_root):
 
     print(f"PDF report saved to: {pdf_path}")
 
-
+# This main function takes summary.json and generates all three types of reports and 
+# saves them in the output_data directory
 def main():
     project_root = ld.get_project_root()
 
