@@ -4,7 +4,7 @@ Reads hyperspectral data from merged_spectral_data.csv and creates a heatmap of 
 arranged in a grid as close to square as possible.
 
 Args:
-    python visualise_heatmap.py [input_csv] [-l location_file]
+    python visualise_heatmap.py [input_csv] [-l location_file] [-n output_name]
 """
 
 from pathlib import Path
@@ -207,9 +207,10 @@ def load_location_mapping(location_path, measurement_names):
 
 
 def parse_cli_args(argv):
-    """Parse command-line arguments, supporting -l/--location for a location file."""
+    """Parse command-line arguments, supporting -l/--location for a location file and -n/--name for the output file."""
     input_parts = []
     location_path = None
+    output_name = None
     i = 0
     while i < len(argv):
         arg = argv[i]
@@ -218,11 +219,16 @@ def parse_cli_args(argv):
                 raise ValueError("Location file must be provided after -l or --location")
             location_path = argv[i + 1]
             i += 2
+        elif arg in ('-n', '--name'):
+            if i + 1 >= len(argv):
+                raise ValueError("Output name must be provided after -n or --name")
+            output_name = argv[i + 1]
+            i += 2
         else:
             input_parts.append(arg)
             i += 1
     input_path = Path(' '.join(input_parts)) if input_parts else None
-    return input_path, location_path
+    return input_path, location_path, output_name
 
 
 def organize_grid_by_location(visual_values, measurement_names, location_mapping):
@@ -401,9 +407,13 @@ def main():
     location_mapping = None
     raw_input_path = None
     raw_location_path = None
+    output_name = None
 
     if len(sys.argv) > 1:
-        raw_input_path, raw_location_path = parse_cli_args(sys.argv[1:])
+        raw_input_path, raw_location_path, output_name = parse_cli_args(sys.argv[1:])
+
+    if output_name is None:
+        output_name = '_heatmap_'
 
     if raw_input_path:
         input_csv = Path(raw_input_path)
@@ -418,7 +428,7 @@ def main():
     else:
         input_csv = project_root / 'data' / 'output_data' / 'merged_spectral_data.csv'
 
-    output_image = project_root / 'data' / 'output_data' / 'ndvi_heatmap.png'
+    output_image = project_root / 'data' / 'output_data' / (output_name + '.png')
 
     if not input_csv.exists():
         raise FileNotFoundError(
