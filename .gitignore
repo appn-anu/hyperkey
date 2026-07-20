@@ -1,0 +1,15 @@
+# python temp files
+scripts/__pycache__/
+*.py[cod]
+
+# temp data
+data/output_data/
+
+# local user config
+.vscode/
+.venv/
+plans/
+
+# ignore local notes and data
+*.local.*
+*.local/
