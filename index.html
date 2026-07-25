@@ -3,28 +3,34 @@
 <meta charset="UTF-8">
 <title>HyperKey</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="oat.min.css">
 <link rel="stylesheet" href="style.css">
 <body>
 
-<img src="img_la.jpg" alt="LA" style="width:100%">
 
-<div class="main">
+<div class="container">
 
+<nav data-topnav>
+<div class="justify-end hstack">
+    <a href="#why">Why?</a>
+    <a href="#what">What?</a>
+    <a href="#roadmap">The Roadmap</a>
+    <a href="https://github.com/appn-anu/hyperkey">Get HyperKey</a>
+</div>
+</nav>
+
+<main>
 <header> <!-- todo: is this actually the right way to do subtitles? -->
+<img src="logo.png" alt="HyperKey logo">
 <h1>HyperKey</h1>
 <p>Fast leaf-level hyperspectra data quality checking</p>
 </header>
 
-<hr>
-<ul>
-    <li><a href="#why">Why?</a></li>
-    <li><a href="#what">What?</a></li>
-    <li><a href="#roadmap">The Roadmap</a></li>
-    <li><a href="#what">Download</a></li>
-</ul>
-<hr>
 
-<p id="why">
+<hr>
+<h2 id="why">Why HyperKey?</h2>
+
+<p>
 Sampling days out in the field are always long, and made longer still when you're working with something new.
 </p>
 
@@ -40,13 +46,32 @@ Is it fine? Is it, really? The data will follow the distribution - we checked th
 We can, and we will. And we're building the means for everyone who wishes to join us to do the same. Say hello to HyperKey.
 </p>
 
+<hr>
 <h2 id="what">What's HyperKey?</h2>
 
 <p>
-HyperKey's a suite of software designed to help pick out errors in leaf-level hyperspectral measurements as early as possible. We aim to eventually cover phone, desktop, and CLI deployments to integrate best to your
+HyperKey's a suite of software designed to help pick out errors in leaf-level hyperspectral measurements as early as possible. We aim to eventually cover phone, desktop, and CLI deployments to integrate best to project-specific pipelines.
+</p>
+
+<hr>
+<h2 id="roadmap">The Roadmap</h2>
+
+<p>
+<ul>
+<li>Phase 1 (In progress, Q4 2026): The core data organisation and reporting functions, accessed through command line interface.</li>
+<li>Phase 2: A desktop app providing a significantly easier to use interface to the same core functions.</li>
+<li>Phase 3: A mobile app that uses additional QC checks to provide fast on-device quality checks to replace the current human review process.</li>
+</ul>
+</p>
+<hr>
+
+<p id="download">
+Does this sound useful for you?
+<a href="https://github.com/appn-anu/hyperkey">Check out the HyperKey GitHub repo today!</a>
 </p>
 
 </div>
+</main>
 
 </body>
 </html>
