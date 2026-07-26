@@ -3,31 +3,31 @@
 <meta charset="UTF-8">
 <title>HyperKey</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="The APPN-ANU HyperKey software suite allows fast leaf-level hyperspectral data quality checking">
 <link rel="stylesheet" href="oat.min.css">
 <link rel="stylesheet" href="style.css">
+
 <body>
 
-
-
-
 <nav data-topnav>
-<div class="justify-end hstack">
+<div class="container justify-center hstack">
     <a href="#why">Why?</a>
     <a href="#what">What?</a>
     <a href="#roadmap">Roadmap</a>
     <a href="https://github.com/appn-anu/hyperkey">Download/Code</a>
 </div>
 </nav>
+
 <div class="container">
 <main>
+
 <header>
 <img src="logo.png" alt=""> <!-- Logo is decorative hence empty alt - already covered by header -->
 <hgroup>
 <h1>HyperKey</h1>
-<p>Fast leaf-level hyperspectra data quality checking</p>
+<p>Fast leaf-level hyperspectral (ASD, SVC, etc.) data quality checking</p>
 </hgroup>
 </header>
-
 
 <hr>
 <h2 id="why">Why HyperKey?</h2>
@@ -49,19 +49,38 @@ We can, and we will. And we're building the means for everyone who wishes to joi
 </p>
 
 <hr>
+
 <h2 id="what">What's HyperKey?</h2>
 
 <p>
-HyperKey's a suite of software designed to help pick out errors in leaf-level hyperspectral measurements as early as possible. We aim to eventually cover phone, desktop, and CLI deployments to integrate best to project-specific pipelines.
+HyperKey's a free and open source suite of software designed to help pick out errors in leaf-level hyperspectral measurements as early as possible. We aim to eventually cover phone, desktop, and CLI deployments to integrate best to project-specific pipelines.
+</p>
+
+<p>
+HyperKey is devloped by the <a href="https://www.plantphenomics.org.au/our-nodes/australian-national-university">Australian Plant Phenomics Facility at the Australian National University (APPN-ANU)</a>, together with students from the <a href="https://comp.anu.edu.au/TechLauncher/">Techlauncher</a> program.
+</p>
+
+<p>
+Currently, HyperKey takes in hyperspectral data files (SVC format, ASD and other formats planned later) with a metadata spreadsheet, and outputs:
+</p>
+
+<ul>
+<li>Combined spreadsheet of reflectance vs. wavelength and sample metadata</li>
+<li>Visual report of reflectance values, spread, and basic processing statistics</li>
+</ul>
+
+<p>
+Some common failure modes intended to be easily observed with the report metrics are: mislabelling of white reference controls as leaf samples, insufficient exposure, light leakage into leaf clips, and duplicate file numbers.
 </p>
 
 <hr>
+
 <h2 id="roadmap">Roadmap</h2>
 
 <ul>
-<li>Phase 1 (In progress, Q4 2026): The core data organisation and reporting functions, accessed through command line interface.</li>
+<li>Phase 1 (Alpha versions available - still in development through Q4 2026): The core data organisation and reporting functions, accessed through command line interface.</li>
 <li>Phase 2: A desktop app providing a significantly easier to use interface to the same core functions.</li>
-<li>Phase 3: A mobile app that uses additional QC checks to provide fast on-device quality checks to replace the current human review process.</li>
+<li>Phase 3: A mobile app that uses additional QC checks to provide fast on-device quality checks to replace the current immediate per-sample review process and constrain valid captures to within a predetermined range.</li>
 </ul>
 <hr>
 
@@ -72,7 +91,6 @@ Does this sound useful for you? <br>
 
 </main>
 </div>
-
 
 </body>
 </html>
