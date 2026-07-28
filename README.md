@@ -157,3 +157,29 @@ Example raw .sig file data can be found in [raw_data](data/raw_data/2026-03-24-S
 Example metadata csv file can be found in [processed_data](data\processed_data\GH7-test-SubFolder.csv)
 
 Example Location file can also be found in [processed_data](data\processed_data\GH7-test-wheats-positions.csv)
+
+## Installation Instructions
+
+- Make sure you have Python 3.11+ installed. 
+
+### Install Dependencies
+
+- To run this project, install the required packages using the main `requirements.txt` file located in the root directory: pip install -r requirements.txt
+
+
+#### What is being installed:
+- Following are the libraries used in this project:
+* **`pandas`**: Used for data manipulation, analysis, and structured data tables.
+* **`numpy`**: Provides support for large, multi-dimensional arrays and mathematical functions.
+* **`matplotlib`**: Handles data visualization and generates plots or charts.
+* **`Markdown`**: Parses and converts markdown text into HTML or other formats.
+* **`PyMuPDF`**: Enables PDF document parsing, text extraction, and rendering.
+
+#### Verify the Installation
+
+- You can check that your packages were correctly installed by running: 
+**`python -c "import pandas, numpy, matplotlib, markdown, fitz; print('All dependencies loaded successfully!')`**
+
+
+
+
