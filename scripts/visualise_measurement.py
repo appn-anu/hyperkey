@@ -38,7 +38,7 @@ def parse_cli_args(argv):
     return input_path, args.output_name
 
 
-def plot_all_measurements(df, output_path=None):
+def plot_all_measurements(df, output_path=None, dark_mode=True):
     """
     Plot all measurements on one graph.
     
@@ -47,7 +47,9 @@ def plot_all_measurements(df, output_path=None):
         output_path: Optional path to save the plot
     """
     wavelengths = np.array([float(col) for col in df.columns])
-
+    
+    if dark_mode:
+            plt.style.use('dark_background')
     plt.figure(figsize=(12, 6))
 
     for name, row in df.iterrows():
@@ -59,6 +61,7 @@ def plot_all_measurements(df, output_path=None):
     plt.title('All Spectral Measurements', fontsize=14)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
+    
 
     # Optional: remove legend if too many lines
     if len(df) <= 20:
@@ -93,9 +96,11 @@ def adding_visuals_in_json(project_root, title, visual_type, image_path):
         json.dump(summary, f, indent=4)
 
 
-def main(input_path=None, output_name=None):
+def main(input_path=None, output_name=None, dark_mode=True):
     project_root = ld.get_project_root()
-    cli_input_path, cli_output_name = parse_cli_args(None)
+
+    if input_path is None and output_name is None:
+        cli_input_path, cli_output_name = parse_cli_args(None)
 
     raw_input_path = Path(input_path) if input_path is not None else cli_input_path
     output_name = output_name if output_name is not None else cli_output_name
@@ -125,7 +130,7 @@ def main(input_path=None, output_name=None):
 
     output_file = (output_name if output_name else '_hyperspectral_') + '.png'
     output_image = project_root / 'data' / 'output_data' / output_file
-    plot_all_measurements(df, output_image)
+    plot_all_measurements(df, output_image, dark_mode)
 
     adding_visuals_in_json(project_root, "Hyperspectral Data", "spectral", output_image)
 
