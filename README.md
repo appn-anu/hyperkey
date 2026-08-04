@@ -68,8 +68,9 @@ Notes:
 
 If the terminal is opened inside the scripts directory, run:
 
+```bash
 python pipeline.py
-
+```
 This launches the command line interface (CLI).
 If the recommended folder structure is followed, the terminal will prompt the user to:
 
@@ -83,15 +84,21 @@ Once selected, the pipeline automatically executes.
 The system can also be executed directly using command line arguments.
 From the project root:
 
+```bash
 python "HyperkeyProjectPath/scripts/pipeline.py" "HyperkeyprojectPath/data/processed_data/GH7-test-SubFolder.csv" -r "data/raw_data" -o "mergedTest.csv"
+```
 
 From the scripts directory:
 
+```bash
 python pipeline.py "../data/processed_data/GH7-test-SubFolder.csv" -r "../data/raw_data" -o "mergedTest.csv"
+```
 
 Using absolute / full file paths (supported irrespective of file location):
 
+```bash
 python pipeline.py "D:/Experiments/Metadata/GH7-test.csv" -r "D:/Research/Raw_SIG_Files/" -o "D:/Results/mergedTest.csv"
+```
 
 ### Command Line Arguments
 
@@ -109,11 +116,15 @@ The system supports:
 
 Examples:
 
+```bash
 python pipeline.py "../data/processed_data/test.csv"
-
+```
+```bash
 python pipeline.py "D:/Metadata/experiment1.csv"
-
+```
+```bash
 python pipeline.py "experiment1.csv" "experiment2.csv"
+```
 
 #### -r / --root
 
@@ -125,15 +136,19 @@ Used to specify the root folder path containing:
 Supports both relative and full file paths.
 Examples:
 
+```bash
 -r "../data/raw_data"
-
+```
+```bash
 -r "D:/Research/Raw_SIG_Files/"
-
+```
 #### -o / --output (Optional)
 
 Used to specify the required output merged CSV filename.
 Example:
+```bash
 -o "mergedTest.csv"
+```
 
 This is useful when scientists want to clearly label or distinguish outputs from specific experiments.
 The argument supports:
@@ -144,11 +159,15 @@ The argument supports:
 - Complete / absolute output file path
 
 Examples:
+```bash
 -o "mergedTest.csv"
-
+```
+```bash
 -o "../results/mergedTest.csv"
-
+```
+```bash
 -o "D:/Results/Experiment_12_Output.csv"
+```
 
 ## Input formatting
 
@@ -174,11 +193,22 @@ Example Location file can also be found in [processed_data](data\processed_data\
 * **`matplotlib`**: Handles data visualization and generates plots or charts.
 * **`Markdown`**: Parses and converts markdown text into HTML or other formats.
 * **`PyMuPDF`**: Enables PDF document parsing, text extraction, and rendering.
+* **`Playwright`**: Used to convert html into pdf.  
+```bash
+pip install playwright
+```
+* **`Chromium`**: Acts as an engine and applies all the styling to pdf.
+```bash
+playwright install chromium
+``` 
 
 #### Verify the Installation
 
 - You can check that your packages were correctly installed by running: 
-**`python -c "import pandas, numpy, matplotlib, markdown, fitz; print('All dependencies loaded successfully!')`**
+```bash 
+python -c 'import pandas, numpy, matplotlib, markdown, fitz, playwright; print("All dependencies loaded successfully!")' 
+```
+
 
 
 

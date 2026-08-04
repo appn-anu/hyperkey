@@ -4,8 +4,13 @@ import markdown
 import fitz
 
 import load_data as ld
+from datetime import datetime
+from playwright.sync_api import sync_playwright
 
 # This method loads the summary.json file that has success matrix and visual data path
+# report_ddmmyyyy for without custom_output_name
+# -o customOutputName_report_ddmmyyyy with custom_output_name
+
 def load_summary_json(project_root):
     json_path = project_root / "data" / "output_data" / "summary.json"
 
@@ -32,6 +37,25 @@ def build_image_section(data, key, empty_message):
 
     return section
 
+
+
+from datetime import datetime
+
+def get_report_filename(data, extension):
+    timestamp = datetime.strptime(
+        data["timestamp"],
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    date = timestamp.strftime("%d%m%Y")
+
+    output_name = data.get("custom_output_name")
+
+    if output_name:
+        return f"{output_name}_report_{date}.{extension}"
+
+    return f"report_{date}.{extension}"
+
 # This method generates the markdown file from the data available from json file and saves it in the 
 # output_data directory
 def generate_markdown_report(data, project_root):
@@ -46,6 +70,8 @@ def generate_markdown_report(data, project_root):
         "spectral_image",
         "No spectral graph generated yet."
     )
+
+    
 
     report_text = f"""
 # HyperKey Processing Report
@@ -76,7 +102,7 @@ This section includes:
 {spectral_graph}
 """
 
-    report_path = project_root / "data" / "output_data" / "report.md"
+    report_path = project_root / "data" / "output_data" / get_report_filename(data, "md")
 
     with open(report_path, "w", encoding="utf-8") as file:
         file.write(report_text)
@@ -87,8 +113,10 @@ This section includes:
 
 # This method uses the markdown file to generate the html file saves it in the 
 # output_data directory 
-def generate_html_report(report_text, project_root):
+def generate_html_report(data, report_text, project_root):
     html_body = markdown.markdown(report_text, extensions=["tables"])
+    
+
 
     html_text = f"""
 <!DOCTYPE html>
@@ -98,20 +126,87 @@ def generate_html_report(report_text, project_root):
     <title>HyperKey Processing Report</title>
 
     <style>
+    
+    
         body {{
-            font-family: Arial, sans-serif;
-            max-width: 900px;
+            font-family: "Arial", sans-serif;
+            background-color: #121212;
+            color: #e8e8e8;
+            max-width: 950px;
             margin: auto;
-            padding: 20px;
-            line-height: 1.6;
+            padding: 40px;
+            line-height: 1.7;
         }}
 
+        h1 {{
+        color: #66d9ef;
+        border-bottom: 2px solid #2d2d2d;
+        padding-bottom: 10px;
+        }}
+
+        h2 {{
+        color: #7dd3fc;
+        margin-top: 35px;
+        page-break-after: avoid;
+        }}
+
+        h3 {{
+        color: #c084fc;
+        page-break-after: avoid;
+        }}
+
+        table {{
+        width: 60%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        }}
+
+        th {{
+        
+        background-color: #1e293b;
+        color: white;
+        }}
+
+        td {{
+        background-color: #1a1a1a;
+        }}
+
+        th, td {{
+        border: 1px solid #333;
+        padding: 10px;
+        text-align: left;
+        }}
+
+        tr:nth-child(even) td {{
+        background-color: #202020;
+        }}
+
+
+
         img {{
-            max-width: 100%;
+            max-width: 90%;
             height: auto;
             display: block;
-            margin: 20px auto;
+            margin: 40px auto;
+            border-radius: 8px;
+            border: 1px solid #444;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+            page-break-after: avoid;
+
         }}
+
+
+        code {{
+        background: #222;
+        padding: 2px 5px;
+        border-radius: 4px;
+        }}
+
+        a {{
+        color: #4fc3f7;
+        }}
+
+    
     </style>
 </head>
 <body>
@@ -120,7 +215,7 @@ def generate_html_report(report_text, project_root):
 </html>
 """
 
-    html_path = project_root / "data" / "output_data" / "report.html"
+    html_path = project_root / "data" / "output_data" / get_report_filename(data, "html")
 
     with open(html_path, "w", encoding="utf-8") as file:
         file.write(html_text)
@@ -144,87 +239,37 @@ def resolve_image_path(image_path_value, project_root, output_dir):
 
     return possible_output_path
 
-# This method generates a pdf from the json file and saves it in the 
-# output_data directory
-def generate_pdf_from_json(data, project_root):
+
+def generate_pdf_report(data, project_root):
     output_dir = project_root / "data" / "output_data"
-    pdf_path = output_dir / "report.pdf"
 
-    doc = fitz.open()
-    page = doc.new_page()
+    html_path = output_dir / get_report_filename(data, "html")
+    pdf_path = output_dir / get_report_filename(data, "pdf")
 
-    y = 50
-    margin = 50
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
 
-    def add_text(text, size=11, gap=18):
-        nonlocal y, page
+        page = browser.new_page()
 
-        if y > 760:
-            page = doc.new_page()
-            y = 50
-
-        page.insert_text(
-            (margin, y),
-            str(text),
-            fontsize=size,
-            fontname="helv"
+        page.goto(
+            f"file:///{html_path}",
+            wait_until="networkidle"
         )
 
-        y += gap
+        page.pdf(
+            path=str(pdf_path),
+            format="A4",
+            print_background=True,
+            margin={
+                "top": "40px",
+                "bottom": "40px",
+                "left": "40px",
+                "right": "40px"
 
-    def add_image(image_path_value, title):
-        nonlocal y, page
-
-        image_path = resolve_image_path(
-            image_path_value,
-            project_root,
-            output_dir
+            }
         )
 
-        if not image_path.exists():
-            add_text(f"Image missing: {image_path_value}")
-            return
-
-        if y > 500:
-            page = doc.new_page()
-            y = 50
-
-        add_text(title, size=13, gap=20)
-
-        rect = fitz.Rect(margin, y, 545, y + 250)
-
-        page.insert_image(
-            rect,
-            filename=str(image_path),
-            keep_proportion=True
-        )
-
-        y += 280
-
-    add_text("HyperKey Processing Report", size=20, gap=30)
-    add_text(f"Generated: {data['timestamp']}", gap=25)
-
-    add_text("Processing Summary", size=15, gap=25)
-    add_text(f"Total rows in metadata: {data['total_rows']}")
-    add_text(f"Successfully matched files: {data['matched_files']}")
-    add_text(f"Blank FileNum rows: {data['blank_filenum']}")
-    add_text(f"Invalid FileNum rows: {data['invalid_filenum']}")
-    add_text(f"Missing .sig files: {data['missing_sig_files']}", gap=25)
-
-    add_text("Generated Files", size=15, gap=25)
-    add_text(f"Merged CSV: {data['output_csv']}")
-    add_text(f"Log file: {data['log_file']}", gap=25)
-
-    add_text("Visualisations", size=15, gap=25)
-
-    for item in data.get("visualisations", []):
-        add_image(item["path"], item["title"])
-
-    for item in data.get("spectral_image", []):
-        add_image(item["path"], item["title"])
-
-    doc.save(pdf_path)
-    doc.close()
+        browser.close()
 
     print(f"PDF report saved to: {pdf_path}")
 
@@ -237,9 +282,9 @@ def main():
 
     report_text = generate_markdown_report(data, project_root)
 
-    generate_html_report(report_text, project_root)
+    generate_html_report(data, report_text, project_root)
 
-    generate_pdf_from_json(data, project_root)
+    generate_pdf_report(data, project_root)
 
 
 if __name__ == "__main__":

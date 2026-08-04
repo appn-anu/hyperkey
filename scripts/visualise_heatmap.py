@@ -316,7 +316,7 @@ def organize_grid_by_row_range(visual_values, rows_list, ranges_list):
     return grid, rows, cols
 
 
-def create_heatmap(visual_type, visual_values, measurement_names, output_path=None, location_mapping=None, rows_list=None, ranges_list=None):
+def create_heatmap(visual_type, visual_values, measurement_names, output_path=None, location_mapping=None, rows_list=None, ranges_list=None, dark_mode=True):
     """
     Create a heatmap of specified values.
     If location_mapping is provided, organize grid by location file.
@@ -345,6 +345,9 @@ def create_heatmap(visual_type, visual_values, measurement_names, output_path=No
         grid[:n_measurements] = visual_values
         grid = grid.reshape(rows, cols)
     
+    if dark_mode:
+        plt.style.use('dark_background')
+
     # Create the heatmap
     _, ax = plt.subplots(figsize=(10, 8))
     
@@ -425,17 +428,15 @@ def adding_visuals_in_json(project_root, title, visual_type, image_path):
         json.dump(summary, f, indent=4)
 
 
-def main(input_path=None, raw_location_path=None, output_name=None, index_name=None):
+def main(input_path=None, raw_location_path=None, output_name=None, index_name='NDVI', dark_mode=True):
     # Get project root and use relative paths
     project_root = ld.get_project_root()
     location_mapping = None
 
-    cli_input_path, cli_location_path, cli_output_name, cli_index_name = parse_cli_args(None)
+    if input_path is None and raw_location_path is None and output_name is None and index_name is None:
+        cli_input_path, raw_location_path, output_name, index_name = parse_cli_args(None)
 
     raw_input_path = Path(input_path) if input_path is not None else cli_input_path
-    raw_location_path = raw_location_path if raw_location_path is not None else cli_location_path
-    output_name = output_name if output_name is not None else cli_output_name
-    index_name = index_name if index_name is not None else cli_index_name
     red_wavelength = 670.0
     nir_wavelength = 800.0
 
@@ -529,6 +530,7 @@ def main(input_path=None, raw_location_path=None, output_name=None, index_name=N
         location_mapping=location_mapping,
         rows_list=rows_list,
         ranges_list=ranges_list,
+        dark_mode=dark_mode,
     )
 
     adding_visuals_in_json(project_root, f"{index_name} Heatmap", "heatmap", output_image)
