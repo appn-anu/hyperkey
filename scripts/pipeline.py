@@ -3,6 +3,7 @@
 # Example:
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
+# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/processed_data/GH7-test-wheats-positions.csv"
 # python scripts/pipeline.py -h
 
 import argparse
@@ -93,6 +94,7 @@ Examples:
   python scripts/pipeline.py
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o sydneyAPPN
+  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -l data/processed_data/GH7-test-wheats-positions.csv
 
 Output naming:
   Without -o:
@@ -138,6 +140,18 @@ Output naming:
         help=(
             "Optional custom output prefix. Do not include a folder path or "
             "file extension."
+        )
+    )
+
+    parser.add_argument(
+        "-l",
+        "--raw-location-path",
+        dest="raw_location_path",
+        default=None,
+        metavar="RAW_LOCATION_FILE",
+        help=(
+            "Optional path to the input file containing species location data. "
+            "This file is used to visualise the heatmap."
         )
     )
 
@@ -301,6 +315,10 @@ def main(cli_arguments=None):
 
     output_csv_filename = f"{merged_output_name}.csv"
     output_csv = default_dir / output_csv_filename
+
+    raw_location_path = None
+    if args.raw_location_path:
+        raw_location_path = Path(args.raw_location_path).expanduser()
 
     log_path = default_dir / "error_log.txt"
     summary_path = default_dir / "summary.json"
@@ -542,6 +560,9 @@ def main(cli_arguments=None):
     if args.output:
         summary["custom_output_name"] = custom_prefix
 
+    if raw_location_path is not None:
+        summary["raw_location_path"] = str(raw_location_path)
+
     with summary_path.open("w", encoding="utf-8") as file:
         json.dump(summary, file, indent=4)
 
@@ -564,6 +585,7 @@ def main(cli_arguments=None):
         "merged_output_name": merged_output_name,
         "heatmap_output_name": heatmap_output_name,
         "spectral_graph_output_name": spectral_graph_output_name,
+        "raw_location_path": raw_location_path,
         "script_dir": script_dir
     }
 
@@ -578,6 +600,7 @@ if __name__ == "__main__":
     output_csv = result["output_csv"]
     heatmap_output_name = result["heatmap_output_name"]
     spectral_graph_output_name = result["spectral_graph_output_name"]
+    raw_location_path = result["raw_location_path"]
 
     # ---------------------------
     # Run Follow-up Modules Sequentially
@@ -586,16 +609,22 @@ if __name__ == "__main__":
     try:
         print("\nRunning visualise_heatmap.py ...")
         from visualise_heatmap import main as heatmap_main
-        heatmap_main(
-            input_csv=output_csv,
-            output_name=heatmap_output_name
-        )
+
+        heatmap_arguments = {
+            "input_path": output_csv,
+            "output_name": heatmap_output_name
+        }
+
+        if raw_location_path is not None:
+            heatmap_arguments["raw_location_path"] = raw_location_path
+
+        heatmap_main(**heatmap_arguments)
         print("visualise_heatmap.py completed successfully.")
 
         print("\nRunning visualise_measurement.py ...")
         from visualise_measurement import main as measurement_main
         measurement_main(
-            input_csv=output_csv,
+            input_path=output_csv,
             output_name=spectral_graph_output_name
         )
         print("visualise_measurement.py completed successfully.")
