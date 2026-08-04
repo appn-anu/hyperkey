@@ -193,12 +193,20 @@ Example Location file can also be found in [processed_data](data\processed_data\
 * **`matplotlib`**: Handles data visualization and generates plots or charts.
 * **`Markdown`**: Parses and converts markdown text into HTML or other formats.
 * **`PyMuPDF`**: Enables PDF document parsing, text extraction, and rendering.
+* **`Playwright`**: Used to convert html into pdf.  
+```bash
+pip install playwright
+```
+* **`Chromium`**: Acts as an engine and applies all the styling to pdf.
+```bash
+playwright install chromium
+``` 
 
 #### Verify the Installation
 
 - You can check that your packages were correctly installed by running: 
 ```bash 
-python -c "import pandas, numpy, matplotlib, markdown, fitz; print('All dependencies loaded successfully!')"  
+python -c 'import pandas, numpy, matplotlib, markdown, fitz, playwright; print("All dependencies loaded successfully!")' 
 ```
 
 
