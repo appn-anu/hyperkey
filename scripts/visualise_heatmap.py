@@ -430,7 +430,8 @@ def main(input_path=None, raw_location_path=None, output_name=None, index_name=N
     project_root = ld.get_project_root()
     location_mapping = None
 
-    cli_input_path, cli_location_path, cli_output_name, cli_index_name = parse_cli_args(None)
+    if input_path is None and raw_location_path is None and output_name is None and index_name is None:
+        cli_input_path, cli_location_path, cli_output_name, cli_index_name = parse_cli_args(None)
 
     raw_input_path = Path(input_path) if input_path is not None else cli_input_path
     raw_location_path = raw_location_path if raw_location_path is not None else cli_location_path

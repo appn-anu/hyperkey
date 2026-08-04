@@ -95,7 +95,9 @@ def adding_visuals_in_json(project_root, title, visual_type, image_path):
 
 def main(input_path=None, output_name=None):
     project_root = ld.get_project_root()
-    cli_input_path, cli_output_name = parse_cli_args(None)
+
+    if input_path is None and output_name is None:
+        cli_input_path, cli_output_name = parse_cli_args(None)
 
     raw_input_path = Path(input_path) if input_path is not None else cli_input_path
     output_name = output_name if output_name is not None else cli_output_name
