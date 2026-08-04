@@ -4,8 +4,12 @@ import markdown
 import fitz
 
 import load_data as ld
+from datetime import datetime
 
 # This method loads the summary.json file that has success matrix and visual data path
+# report_ddmmyyyy for without custom_output_name
+# -o customOutputName_report_ddmmyyyy with custom_output_name
+
 def load_summary_json(project_root):
     json_path = project_root / "data" / "output_data" / "summary.json"
 
@@ -32,6 +36,29 @@ def build_image_section(data, key, empty_message):
 
     return section
 
+
+# Get the prefix for the unique output names. 
+# def get_output_prefix(data):
+#     output_name = data.get("custom_output_name")
+#     return f"{output_name}_" if output_name else ""
+
+from datetime import datetime
+
+def get_report_filename(data, extension):
+    timestamp = datetime.strptime(
+        data["timestamp"],
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    date = timestamp.strftime("%d%m%Y")
+
+    output_name = data.get("custom_output_name")
+
+    if output_name:
+        return f"{output_name}_report_{date}.{extension}"
+
+    return f"report_{date}.{extension}"
+
 # This method generates the markdown file from the data available from json file and saves it in the 
 # output_data directory
 def generate_markdown_report(data, project_root):
@@ -46,6 +73,8 @@ def generate_markdown_report(data, project_root):
         "spectral_image",
         "No spectral graph generated yet."
     )
+
+    # prefix = get_output_prefix(data)
 
     report_text = f"""
 # HyperKey Processing Report
@@ -76,7 +105,7 @@ This section includes:
 {spectral_graph}
 """
 
-    report_path = project_root / "data" / "output_data" / "report.md"
+    report_path = project_root / "data" / "output_data" / get_report_filename(data, "md")
 
     with open(report_path, "w", encoding="utf-8") as file:
         file.write(report_text)
@@ -87,8 +116,10 @@ This section includes:
 
 # This method uses the markdown file to generate the html file saves it in the 
 # output_data directory 
-def generate_html_report(report_text, project_root):
+def generate_html_report(data, report_text, project_root):
     html_body = markdown.markdown(report_text, extensions=["tables"])
+    # prefix = get_output_prefix(data)
+
 
     html_text = f"""
 <!DOCTYPE html>
@@ -120,7 +151,7 @@ def generate_html_report(report_text, project_root):
 </html>
 """
 
-    html_path = project_root / "data" / "output_data" / "report.html"
+    html_path = project_root / "data" / "output_data" / get_report_filename(data, "html")
 
     with open(html_path, "w", encoding="utf-8") as file:
         file.write(html_text)
@@ -148,7 +179,9 @@ def resolve_image_path(image_path_value, project_root, output_dir):
 # output_data directory
 def generate_pdf_from_json(data, project_root):
     output_dir = project_root / "data" / "output_data"
-    pdf_path = output_dir / "report.pdf"
+    # prefix = get_output_prefix(data)
+    pdf_path = output_dir / get_report_filename(data, "pdf")
+    
 
     doc = fitz.open()
     page = doc.new_page()
@@ -237,7 +270,7 @@ def main():
 
     report_text = generate_markdown_report(data, project_root)
 
-    generate_html_report(report_text, project_root)
+    generate_html_report(data, report_text, project_root)
 
     generate_pdf_from_json(data, project_root)
 
