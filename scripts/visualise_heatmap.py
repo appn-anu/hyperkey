@@ -425,12 +425,17 @@ def adding_visuals_in_json(project_root, title, visual_type, image_path):
         json.dump(summary, f, indent=4)
 
 
-def main():
+def main(input_path=None, raw_location_path=None, output_name=None, index_name=None):
     # Get project root and use relative paths
     project_root = ld.get_project_root()
     location_mapping = None
 
-    raw_input_path, raw_location_path, output_name, index_name = parse_cli_args(None)
+    cli_input_path, cli_location_path, cli_output_name, cli_index_name = parse_cli_args(None)
+
+    raw_input_path = Path(input_path) if input_path is not None else cli_input_path
+    raw_location_path = raw_location_path if raw_location_path is not None else cli_location_path
+    output_name = output_name if output_name is not None else cli_output_name
+    index_name = index_name if index_name is not None else cli_index_name
     red_wavelength = 670.0
     nir_wavelength = 800.0
 
