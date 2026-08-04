@@ -136,7 +136,7 @@ Output naming:
         "--output",
         dest="output",
         default=None,
-        metavar="OUTPUT_NAME",
+        metavar="OUTPUT",
         help=(
             "Optional custom output prefix. Do not include a folder path or "
             "file extension."
