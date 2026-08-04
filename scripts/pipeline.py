@@ -3,12 +3,12 @@
 # Example:
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
+# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/processed_data/GH7-test-wheats-positions.csv"
 # python scripts/pipeline.py -h
 
+import argparse
 import csv
 import json
-import sys
-import importlib
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -80,118 +80,82 @@ def build_output_names(custom_prefix=None):
     }
 
 
-def print_help():
-    help_text = """
-Usage:
-  python scripts/pipeline.py [METADATA_CSV ...] [-r ROOT_FOLDER] [-o OUTPUT_NAME]
-  python scripts/pipeline.py -h
-
-Description:
-  Extract and merge spectral data from metadata CSV files and .sig files.
-  After creating the merged CSV, the pipeline runs visualizations and report generation sequentially.
-
-Arguments:
-  METADATA_CSV
-      One or more metadata CSV files.
-      If omitted, the CLI selection menu is shown.
-
-Options:
-  -h, --help
-      Show this help message and exit.
-
-  -r, --root ROOT_FOLDER
-      Root folder containing the .sig files.
-      If omitted, current directory is used.
-
-  -o, --output OUTPUT_NAME
-      Optional custom output prefix.
-      Do not include a path.
-      Do not include an extension.
-
+def create_argument_parser():
+    """Create and configure the command-line argument parser."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Extract and merge spectral data from metadata CSV files and .sig files. "
+            "After creating the merged CSV, run the visualisation and report modules "
+            "sequentially."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
 Examples:
-  python scripts/pipeline.py -h
-
+  python scripts/pipeline.py
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data
-
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o sydneyAPPN
+  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -l data/processed_data/GH7-test-wheats-positions.csv
 
-Naming:
-  If -o/--output is not provided:
-      merged_spectral_data_DDMMYYYY.csv
-      heatmap_DDMMYYYY
-      SpectralGraph_DDMMYYYY
+Output naming:
+  Without -o:
+    merged_spectral_data_DDMMYYYY.csv
+    heatmap_DDMMYYYY
+    SpectralGraph_DDMMYYYY
 
-  If -o sydneyAPPN is provided:
-      sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
-      sydneyAPPN_heatmap_DDMMYYYY
-      sydneyAPPN_SpectralGraph_DDMMYYYY
-
-  If -o/--output is provided, the summary JSON includes:
-      "custom_output_name": "your_output_name"
-
-  The visualization modules are called through their main() functions.
-  Their sys.argv is set like this:
-      visualise_heatmap.py <merged_csv_path> -n <heatmap_output_name>
-      visualise_measurement.py <merged_csv_path> -n <spectral_graph_output_name>
+  With -o sydneyAPPN:
+    sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
+    sydneyAPPN_heatmap_DDMMYYYY
+    sydneyAPPN_SpectralGraph_DDMMYYYY
 """
-    print(help_text.strip())
+    )
 
+    parser.add_argument(
+        "metadata_files",
+        metavar="METADATA_CSV",
+        nargs="*",
+        help=(
+            "One or more metadata CSV files. If omitted, the interactive "
+            "selection menu is shown."
+        )
+    )
 
-def parse_pipeline_cli_args(argv):
-    """
-    Parse command-line arguments using sys.argv style logic.
+    parser.add_argument(
+        "-r",
+        "--root",
+        dest="root",
+        default=None,
+        metavar="ROOT_FOLDER",
+        help=(
+            "Root folder containing the .sig files. If omitted while metadata "
+            "files are supplied, the current directory is used."
+        )
+    )
 
-    Supported:
-      -h / --help
-      -r / --root
-      -o / --output
+    parser.add_argument(
+        "-o",
+        "--output",
+        dest="output",
+        default=None,
+        metavar="OUTPUT",
+        help=(
+            "Optional custom output prefix. Do not include a folder path or "
+            "file extension."
+        )
+    )
 
-    Everything else is treated as a metadata CSV path.
-    """
-    metadata_files = []
-    root_folder = None
-    output_name = None
+    parser.add_argument(
+        "-l",
+        "--raw-location-path",
+        dest="raw_location_path",
+        default=None,
+        metavar="RAW_LOCATION_FILE",
+        help=(
+            "Optional path to the input file containing species location data. "
+            "This file is used to visualise the heatmap."
+        )
+    )
 
-    i = 0
-
-    while i < len(argv):
-        arg = argv[i]
-
-        if arg in ("-h", "--help"):
-            return {
-                "help": True,
-                "metadata_files": [],
-                "root": None,
-                "output": None
-            }
-
-        elif arg in ("-r", "--root"):
-            if i + 1 >= len(argv):
-                raise ValueError("Root folder must be provided after -r or --root")
-
-            root_folder = argv[i + 1]
-            i += 2
-
-        elif arg in ("-o", "--output"):
-            if i + 1 >= len(argv):
-                raise ValueError("Output name must be provided after -o or --output")
-
-            output_name = argv[i + 1]
-            i += 2
-
-        elif arg.startswith("-"):
-            raise ValueError(f"Unknown option: {arg}")
-
-        else:
-            metadata_files.append(arg)
-            i += 1
-
-    return {
-        "help": False,
-        "metadata_files": metadata_files,
-        "root": root_folder,
-        "output": output_name
-    }
+    return parser
 
 
 def select_from_list(items, prompt_label):
@@ -309,59 +273,22 @@ def parse_sig_file(filepath):
         return None, None
 
 
-def run_module_main(module_name, display_name, argv=None):
-    """
-    Import a module and call its main() function directly.
-
-    This avoids subprocess execution.
-
-    For modules that use sys.argv internally, this function temporarily sets sys.argv.
-    """
-    if argv is None:
-        argv = []
-
-    print(f"\nRunning {display_name} ...")
-
-    old_argv = sys.argv[:]
-
-    try:
-        sys.argv = [display_name] + [str(arg) for arg in argv]
-
-        module = importlib.import_module(module_name)
-
-        if not hasattr(module, "main"):
-            raise AttributeError(f"{display_name} does not have a main() function.")
-
-        module.main()
-
-        print(f"{display_name} completed successfully.")
-
-    except Exception as e:
-        print(f"\n{display_name} failed.")
-        print(f"Error: {e}")
-        raise
-
-    finally:
-        sys.argv = old_argv
-
 
 # ---------------------------
 # Main Logic
 # ---------------------------
 
-def main():
-    try:
-        cli_args = parse_pipeline_cli_args(sys.argv[1:])
-    except ValueError as e:
-        print(f"Argument error: {e}")
-        print("Use -h or --help to see usage.")
-        return None
+def main(cli_arguments=None):
+    """
+    Run the extraction and merge stage.
 
-    if cli_args["help"]:
-        print_help()
-        return {
-            "help_requested": True
-        }
+    cli_arguments:
+        None     -> argparse reads arguments from the command line.
+        list     -> argparse parses the supplied list, which is useful for tests
+                    or for calling pipeline.main([...]) from another module.
+    """
+    parser = create_argument_parser()
+    args = parser.parse_args(cli_arguments)
 
     # ---------------------------
     # 1. Setup Output Directory and Paths
@@ -370,14 +297,12 @@ def main():
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
 
-    if str(script_dir) not in sys.path:
-        sys.path.insert(0, str(script_dir))
 
     default_dir = project_root / "data" / "output_data"
     default_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        custom_prefix = get_custom_prefix(cli_args["output"])
+        custom_prefix = get_custom_prefix(args.output)
     except ValueError as e:
         print(f"Invalid output name: {e}")
         return None
@@ -391,6 +316,10 @@ def main():
     output_csv_filename = f"{merged_output_name}.csv"
     output_csv = default_dir / output_csv_filename
 
+    raw_location_path = None
+    if args.raw_location_path:
+        raw_location_path = Path(args.raw_location_path).expanduser()
+
     log_path = default_dir / "error_log.txt"
     summary_path = default_dir / "summary.json"
 
@@ -398,7 +327,7 @@ def main():
     # 2. Selection Phase
     # ---------------------------
 
-    metadata_files = [Path(mf) for mf in cli_args["metadata_files"]]
+    metadata_files = [Path(mf) for mf in args.metadata_files]
     root_folder = Path(".")
 
     processed_dir = project_root / "data" / "processed_data"
@@ -444,8 +373,8 @@ def main():
         root_folder = Path(selected_root)
 
     else:
-        if cli_args["root"]:
-            root_folder = Path(cli_args["root"].split(",")[0].strip() or ".")
+        if args.root:
+            root_folder = Path(args.root.split(",")[0].strip() or ".")
         else:
             print("Warning: root folder not given. Using current directory '.'")
 
@@ -628,8 +557,11 @@ def main():
         "log_file": str(log_path)
     }
 
-    if cli_args["output"]:
+    if args.output:
         summary["custom_output_name"] = custom_prefix
+
+    if raw_location_path is not None:
+        summary["raw_location_path"] = str(raw_location_path)
 
     with summary_path.open("w", encoding="utf-8") as file:
         json.dump(summary, file, indent=4)
@@ -649,11 +581,11 @@ def main():
     print(f"- JSON: {summary_path}")
 
     return {
-        "help_requested": False,
         "output_csv": output_csv,
         "merged_output_name": merged_output_name,
         "heatmap_output_name": heatmap_output_name,
         "spectral_graph_output_name": spectral_graph_output_name,
+        "raw_location_path": raw_location_path,
         "script_dir": script_dir
     }
 
@@ -665,38 +597,47 @@ if __name__ == "__main__":
         print("\nPipeline stopped because main processing failed.")
         raise SystemExit(1)
 
-    if result.get("help_requested"):
-        raise SystemExit(0)
-
     output_csv = result["output_csv"]
     heatmap_output_name = result["heatmap_output_name"]
     spectral_graph_output_name = result["spectral_graph_output_name"]
+    raw_location_path = result["raw_location_path"]
 
     # ---------------------------
     # Run Follow-up Modules Sequentially
     # ---------------------------
 
     try:
-        run_module_main(
-            "visualise_heatmap",
-            "visualise_heatmap.py",
-            argv=[output_csv, "-n", heatmap_output_name]
-        )
+        print("\nRunning visualise_heatmap.py ...")
+        from visualise_heatmap import main as heatmap_main
 
-        run_module_main(
-            "visualise_measurement",
-            "visualise_measurement.py",
-            argv=[output_csv, "-n", spectral_graph_output_name]
-        )
+        heatmap_arguments = {
+            "input_path": output_csv,
+            "output_name": heatmap_output_name
+        }
 
-        run_module_main(
-            "report",
-            "report.py",
-            argv=[]
-        )
+        if raw_location_path is not None:
+            heatmap_arguments["raw_location_path"] = raw_location_path
 
-    except Exception:
+        heatmap_main(**heatmap_arguments)
+        print("visualise_heatmap.py completed successfully.")
+
+        print("\nRunning visualise_measurement.py ...")
+        from visualise_measurement import main as measurement_main
+        measurement_main(
+            input_path=output_csv,
+            output_name=spectral_graph_output_name
+        )
+        print("visualise_measurement.py completed successfully.")
+
+        print("\nRunning report.py ...")
+        from report import main as report_main
+        report_main()
+        print("report.py completed successfully.")
+
+    except Exception as error:
         print("\nPipeline stopped because a follow-up module failed.")
+        print(f"Error: {error}")
         raise SystemExit(1)
 
     print("\nFULL PIPELINE COMPLETED!")
+ 

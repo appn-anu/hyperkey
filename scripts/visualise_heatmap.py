@@ -1,19 +1,26 @@
 """
 Heatmap Visualisation Script
-Reads hyperspectral data from merged_spectral_data.csv and creates a heatmap of NDVI values
+Reads hyperspectral data from merged_spectral_data.csv and creates a heatmap of a spectral index
 arranged in a grid as close to square as possible.
 
 Args:
     python visualise_heatmap.py [input_csv] [-l location_file] [-n output_name]
+        [-i index_name]
+
+Options:
+    -l, --location    Location file for grid placement.
+    -n, --name        Output image name prefix.
+    -i, --index       Spectral index name to compute (default: NDVI).
 """
 
 from pathlib import Path
+import argparse
 
 import load_data as ld
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import sys
+import spyndex
 import json
 
 
@@ -24,30 +31,38 @@ def find_closest_wavelength(wavelengths, target):
     return idx, wavelengths[idx]
 
 
-def calculate_ndvi(df):
+def calculate_spectral_index(df, index_name='NDVI', red_wavelength=670.0, nir_wavelength=800.0):
     """
-    Calculate NDVI for each measurement.
-    NDVI = (NIR - Red) / (NIR + Red)
-    Using typical Red (~670nm) and NIR (~800nm) bands.
+    Calculate a spectral index using spyndex.
+    Default index is NDVI, calculated from the closest Red and NIR wavelengths.
     """
-    # Get wavelengths from column names
+    index_name = str(index_name).upper().strip()
     wavelengths = df.columns.astype(float)
-    
-    # Find closest wavelengths to Red and NIR bands
-    red_idx, red_wavelength = find_closest_wavelength(wavelengths, 670)
-    nir_idx, nir_wavelength = find_closest_wavelength(wavelengths, 800)
-    
-    print(f"Using Red band: {red_wavelength:.1f}nm (index {red_idx})")
-    print(f"Using NIR band: {nir_wavelength:.1f}nm (index {nir_idx})")
-    
-    # Extract Red and NIR reflectance values
-    red = df.iloc[:, red_idx].values
-    nir = df.iloc[:, nir_idx].values
-    
-    # Calculate NDVI
-    ndvi = (nir - red) / (nir + red)
-    
-    return ndvi
+
+    red_idx, matched_red = find_closest_wavelength(wavelengths, red_wavelength)
+    nir_idx, matched_nir = find_closest_wavelength(wavelengths, nir_wavelength)
+
+    red = df.iloc[:, red_idx]
+    nir = df.iloc[:, nir_idx]
+
+    print(f"Using Red band: {matched_red:.1f}nm (index {red_idx})")
+    print(f"Using NIR band: {matched_nir:.1f}nm (index {nir_idx})")
+
+    params = {
+        "N": nir,
+        "R": red
+    }
+
+    try:
+        result = spyndex.computeIndex(index=index_name, params=params, returnOrigin=True)
+    except Exception as e:
+        raise ValueError(
+            f"Failed to compute index '{index_name}' with Red/NIR bands. "
+            f"Please verify the index name and available bands. Original error: {e}"
+        )
+
+    values = np.asarray(result).flatten()
+    return values
 
 
 def calculate_square_grid(n_measurements):
@@ -207,28 +222,37 @@ def load_location_mapping(location_path, measurement_names):
 
 
 def parse_cli_args(argv):
-    """Parse command-line arguments, supporting -l/--location for a location file and -n/--name for the output file."""
-    input_parts = []
-    location_path = None
-    output_name = None
-    i = 0
-    while i < len(argv):
-        arg = argv[i]
-        if arg in ('-l', '--location'):
-            if i + 1 >= len(argv):
-                raise ValueError("Location file must be provided after -l or --location")
-            location_path = argv[i + 1]
-            i += 2
-        elif arg in ('-n', '--name'):
-            if i + 1 >= len(argv):
-                raise ValueError("Output name must be provided after -n or --name")
-            output_name = argv[i + 1]
-            i += 2
-        else:
-            input_parts.append(arg)
-            i += 1
-    input_path = Path(' '.join(input_parts)) if input_parts else None
-    return input_path, location_path, output_name
+    """Parse command-line arguments using argparse."""
+    parser = argparse.ArgumentParser(
+        description="Generate a spectral index heatmap from merged hyperspectral data."
+    )
+    parser.add_argument(
+        "input_csv",
+        nargs="?",
+        help="Optional input merged spectral CSV file. Defaults to data/output_data/merged_spectral_data.csv.",
+    )
+    parser.add_argument(
+        "-l",
+        "--location",
+        dest="location_path",
+        help="Location file for grid placement.",
+    )
+    parser.add_argument(
+        "-n",
+        "--name",
+        dest="output_name",
+        help="Output image name prefix.",
+    )
+    parser.add_argument(
+        "-i",
+        "--index",
+        dest="index_name",
+        default="NDVI",
+        help="Spectral index name to compute (default: NDVI).",
+    )
+    args = parser.parse_args(argv)
+    input_path = Path(args.input_csv) if args.input_csv else None
+    return input_path, args.location_path, args.output_name, args.index_name
 
 
 def organize_grid_by_location(visual_values, measurement_names, location_mapping):
@@ -292,7 +316,7 @@ def organize_grid_by_row_range(visual_values, rows_list, ranges_list):
     return grid, rows, cols
 
 
-def create_heatmap(visual_type, visual_values, measurement_names, output_path=None, location_mapping=None, rows_list=None, ranges_list=None):
+def create_heatmap(visual_type, visual_values, measurement_names, output_path=None, location_mapping=None, rows_list=None, ranges_list=None, dark_mode=True):
     """
     Create a heatmap of specified values.
     If location_mapping is provided, organize grid by location file.
@@ -321,6 +345,9 @@ def create_heatmap(visual_type, visual_values, measurement_names, output_path=No
         grid[:n_measurements] = visual_values
         grid = grid.reshape(rows, cols)
     
+    if dark_mode:
+        plt.style.use('dark_background')
+
     # Create the heatmap
     _, ax = plt.subplots(figsize=(10, 8))
     
@@ -401,16 +428,17 @@ def adding_visuals_in_json(project_root, title, visual_type, image_path):
         json.dump(summary, f, indent=4)
 
 
-def main():
+def main(input_path=None, raw_location_path=None, output_name=None, index_name='NDVI', dark_mode=True):
     # Get project root and use relative paths
     project_root = ld.get_project_root()
     location_mapping = None
-    raw_input_path = None
-    raw_location_path = None
-    output_name = None
 
-    if len(sys.argv) > 1:
-        raw_input_path, raw_location_path, output_name = parse_cli_args(sys.argv[1:])
+    if input_path is None and raw_location_path is None and output_name is None and index_name is None:
+        cli_input_path, raw_location_path, output_name, index_name = parse_cli_args(None)
+
+    raw_input_path = Path(input_path) if input_path is not None else cli_input_path
+    red_wavelength = 670.0
+    nir_wavelength = 800.0
 
     if output_name is None:
         output_name = '_heatmap_'
@@ -471,11 +499,11 @@ def main():
         print(f"Error: {e}")
         raise
     
-    print("\nCalculating NDVI...")
-    ndvi_values = calculate_ndvi(df)
+    print(f"\nCalculating {index_name}...")
+    ndvi_values = calculate_spectral_index(df, index_name, red_wavelength, nir_wavelength)
     
     # Print summary statistics
-    print(f"\nStatistics:")
+    print(f"\nStatistics for {index_name}:")
     print(f"  Min: {np.nanmin(ndvi_values):.4f}")
     print(f"  Max: {np.nanmax(ndvi_values):.4f}")
     print(f"  Mean: {np.nanmean(ndvi_values):.4f}")
@@ -495,16 +523,17 @@ def main():
         filtered_names = df.index.tolist()
     
     create_heatmap(
-        "NDVI",
+        index_name,
         filtered_ndvi,
         filtered_names,
         output_image,
         location_mapping=location_mapping,
         rows_list=rows_list,
         ranges_list=ranges_list,
+        dark_mode=dark_mode,
     )
 
-    adding_visuals_in_json(project_root, "NDVI Heatmap", "heatmap", output_image)
+    adding_visuals_in_json(project_root, f"{index_name} Heatmap", "heatmap", output_image)
     
     print("\nDone!")
 
