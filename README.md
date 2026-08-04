@@ -183,30 +183,31 @@ Example Location file can also be found in [processed_data](data\processed_data\
 
 ### Install Dependencies
 
-- To run this project, install the required packages using the main `requirements.txt` file located in the root directory: pip install -r requirements.txt
+- To run this project, install the required packages using the main `requirements.txt` file located in the root directory:
 
-
+```bash
+pip install -r requirements.txt
+```
 #### What is being installed:
 - Following are the libraries used in this project:
 * **`pandas`**: Used for data manipulation, analysis, and structured data tables.
 * **`numpy`**: Provides support for large, multi-dimensional arrays and mathematical functions.
 * **`matplotlib`**: Handles data visualization and generates plots or charts.
 * **`Markdown`**: Parses and converts markdown text into HTML or other formats.
-* **`PyMuPDF`**: Enables PDF document parsing, text extraction, and rendering.
 * **`Playwright`**: Used to convert html into pdf.  
-```bash
-pip install playwright
-```
 * **`Chromium`**: Acts as an engine and applies all the styling to pdf.
+
+and then run this command
+
 ```bash
-playwright install chromium
+playwright install 
 ``` 
 
 #### Verify the Installation
 
 - You can check that your packages were correctly installed by running: 
 ```bash 
-python -c 'import pandas, numpy, matplotlib, markdown, fitz, playwright; print("All dependencies loaded successfully!")' 
+python -c 'import pandas, numpy, matplotlib, markdown, playwright; print("All dependencies loaded successfully!")' 
 ```
 
 
