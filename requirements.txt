@@ -1,5 +1,0 @@
-pandas>=0
-numpy>=0
-matplotlib>=0
-Markdown>=0
-PyMuPDF>=0

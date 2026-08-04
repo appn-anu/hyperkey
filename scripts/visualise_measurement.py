@@ -8,35 +8,34 @@ Args:
     The plot is always saved as a PNG and not shown interactively.
 """
 
+import argparse
 from pathlib import Path
 
 import load_data as ld
 import numpy as np
 import matplotlib.pyplot as plt
-import sys
 import json
 
 
 def parse_cli_args(argv):
-    """Parse command-line arguments, supporting -n/--name for the output file."""
-    input_parts = []
-    output_name = None
-    i = 0
-    while i < len(argv):
-        arg = argv[i]
-        if arg in ('-n', '--name'):
-            if i + 1 >= len(argv):
-                raise ValueError("Output name must be provided after -n or --name")
-            output_name = argv[i + 1]
-            i += 2
-        else:
-            input_parts.append(arg)
-            i += 1
-    input_path = None
-    if input_parts:
-        input_path_str = ' '.join(input_parts)
-        input_path = Path(input_path_str.replace('\\', '/'))
-    return input_path, output_name
+    """Parse command-line arguments using argparse."""
+    parser = argparse.ArgumentParser(
+        description="Generate a spectral measurement plot from merged hyperspectral data."
+    )
+    parser.add_argument(
+        "input_csv",
+        nargs="?",
+        help="Optional input merged spectral CSV file. Defaults to the merged output CSV.",
+    )
+    parser.add_argument(
+        "-n",
+        "--name",
+        dest="output_name",
+        help="Output image name prefix.",
+    )
+    args = parser.parse_args(argv)
+    input_path = Path(args.input_csv) if args.input_csv else None
+    return input_path, args.output_name
 
 
 def plot_all_measurements(df, output_path=None):
@@ -94,9 +93,12 @@ def adding_visuals_in_json(project_root, title, visual_type, image_path):
         json.dump(summary, f, indent=4)
 
 
-def main():
+def main(input_path=None, output_name=None):
     project_root = ld.get_project_root()
-    raw_input_path, output_name = parse_cli_args(sys.argv[1:])
+    cli_input_path, cli_output_name = parse_cli_args(None)
+
+    raw_input_path = Path(input_path) if input_path is not None else cli_input_path
+    output_name = output_name if output_name is not None else cli_output_name
     input_csv = None
 
     if raw_input_path:
