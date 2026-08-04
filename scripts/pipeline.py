@@ -4,7 +4,7 @@
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d 
+# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
 # python scripts/pipeline.py -h
 
 import argparse
@@ -26,43 +26,75 @@ def get_date_stamp():
     return datetime.now().strftime("%d%m%Y")
 
 
-def get_custom_prefix(output_name):
+def parse_output_target(output_value, default_directory):
     """
-    Return the custom prefix provided through -o/--output.
+    Resolve the value supplied through -o/--output.
 
-    If -o is not given, return None.
+    Supported forms:
+      - None
+          Use the default output directory and default dated names.
 
-    Example:
-      -o sydneyAPPN -> sydneyAPPN
+      - A base name, for example: -o sydneyAPPN
+          Keep the existing naming behaviour inside the default output directory.
+
+      - A path, for example: -o "D:/Results/WheatData/sydneyAPPN"
+          Use the path's parent as the output directory and its final component
+          as the custom prefix. Existing dated output naming is preserved.
+
+    A trailing .csv extension is accepted and removed from the base name.
     """
-    if output_name is None:
-        return None
+    default_directory = Path(default_directory)
 
-    raw_name = str(output_name).strip()
+    if output_value is None:
+        return {
+            "custom_prefix": None,
+            "output_directory": default_directory,
+            "is_path_output": False,
+            "requested_output": None
+        }
 
-    # Remove any accidental folder path while supporting both / and \ separators.
-    cleaned_name = PureWindowsPath(PurePosixPath(raw_name).name).name
+    raw_value = str(output_value).strip().strip('"').strip("'")
 
-    if not cleaned_name:
-        raise ValueError("Output name cannot be empty.")
+    if not raw_value:
+        raise ValueError("Output value cannot be empty.")
 
-    return cleaned_name
+    # A slash, backslash, drive prefix, or explicit parent directory means the
+    # user supplied a path rather than only a base filename.
+    windows_value = PureWindowsPath(raw_value)
+    posix_value = PurePosixPath(raw_value)
+    has_directory = (
+        "/" in raw_value
+        or "\\" in raw_value
+        or bool(windows_value.drive)
+        or str(posix_value.parent) not in ("", ".")
+    )
 
+    if has_directory:
+        output_path = Path(raw_value).expanduser()
+        output_directory = output_path.parent
+        base_name = output_path.name
+    else:
+        output_directory = default_directory
+        base_name = raw_value
+
+    # The value represents an output base, not a required extension.
+    if base_name.lower().endswith(".csv"):
+        base_name = base_name[:-4]
+
+    base_name = base_name.strip()
+
+    if not base_name:
+        raise ValueError("Output filename cannot be empty.")
+
+    return {
+        "custom_prefix": base_name,
+        "output_directory": output_directory,
+        "is_path_output": has_directory,
+        "requested_output": raw_value
+    }
 
 def build_output_names(custom_prefix=None):
-    """
-    Build output names for merged dataset and visualizations.
-
-    Default names:
-      merged_spectral_data_DDMMYYYY
-      heatmap_DDMMYYYY
-      SpectralGraph_DDMMYYYY
-
-    Custom names, example with -o sydneyAPPN:
-      sydneyAPPN_merged_spectral_data_DDMMYYYY
-      sydneyAPPN_heatmap_DDMMYYYY
-      sydneyAPPN_SpectralGraph_DDMMYYYY
-    """
+    """Build the existing dated names for all generated outputs."""
     date_stamp = get_date_stamp()
 
     if custom_prefix:
@@ -80,7 +112,6 @@ def build_output_names(custom_prefix=None):
         "spectral_graph_output_name": spectral_graph_output_name
     }
 
-
 def create_argument_parser():
     """Create and configure the command-line argument parser."""
     parser = argparse.ArgumentParser(
@@ -95,6 +126,7 @@ Examples:
   python scripts/pipeline.py
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o sydneyAPPN
+  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o "D:/Results/WheatData/sydneyAPPN"
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -l data/raw_location/species_locations.csv
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -d
 
@@ -108,6 +140,11 @@ Output naming:
     sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
     sydneyAPPN_heatmap_DDMMYYYY
     sydneyAPPN_SpectralGraph_DDMMYYYY
+
+  With -o "D:/Results/WheatData/sydneyAPPN":
+    D:/Results/WheatData/sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
+    D:/Results/WheatData/sydneyAPPN_heatmap_DDMMYYYY
+    D:/Results/WheatData/sydneyAPPN_SpectralGraph_DDMMYYYY
 """
     )
 
@@ -140,8 +177,9 @@ Output naming:
         default=None,
         metavar="OUTPUT_NAME",
         help=(
-            "Optional custom output prefix. Do not include a folder path or "
-            "file extension."
+            "Optional output base name or full output path. A base name keeps "
+            "the existing dated naming behaviour. A full path places all "
+            "generated outputs in that directory."
         )
     )
 
@@ -164,10 +202,11 @@ Output naming:
         action="store_false",
         default=True,
         help=(
-            "Disable dark mode for generated outputs. Dark mode is enabled by default. "
-            "Supplying this flag sets dark_mode=False. No value is needed after -d."
-            "by default; dark_mode=True."
-            "Just use -d to disable dark mode."
+            "Disable dark mode for generated outputs. Dark mode is enabled be default."
+            "Just -d and no value is needed after that." 
+            "This flag is passed to visualise_heatmap.py, visualise_measurement.py, and report.py. "
+            "by default dark_mode = True;"
+            "Supplying this flag passes dark_mode=False. just -d and no value is needed after that."
         )
     )
 
@@ -315,29 +354,39 @@ def main(cli_arguments=None):
 
 
     default_dir = project_root / "data" / "output_data"
-    default_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        custom_prefix = get_custom_prefix(args.output)
+        output_target = parse_output_target(args.output, default_dir)
     except ValueError as e:
-        print(f"Invalid output name: {e}")
+        print(f"Invalid output value: {e}")
         return None
 
-    output_names = build_output_names(custom_prefix)
+    custom_prefix = output_target["custom_prefix"]
+    output_directory = output_target["output_directory"]
+    is_path_output = output_target["is_path_output"]
+
+    try:
+        output_directory.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Unable to create output directory '{output_directory}': {e}")
+        return None
+
+    output_names = build_output_names(custom_prefix=custom_prefix)
 
     merged_output_name = output_names["merged_output_name"]
     heatmap_output_name = output_names["heatmap_output_name"]
     spectral_graph_output_name = output_names["spectral_graph_output_name"]
 
-    output_csv_filename = f"{merged_output_name}.csv"
-    output_csv = default_dir / output_csv_filename
+    output_csv = output_directory / f"{merged_output_name}.csv"
+    heatmap_output_path = output_directory / heatmap_output_name
+    spectral_graph_output_path = output_directory / spectral_graph_output_name
 
     raw_location_path = None
     if args.raw_location_path:
         raw_location_path = Path(args.raw_location_path).expanduser()
 
-    log_path = default_dir / "error_log.txt"
-    summary_path = default_dir / "summary.json"
+    log_path = output_directory / "error_log.txt"
+    summary_path = output_directory / "summary.json"
 
     # ---------------------------
     # 2. Selection Phase
@@ -569,12 +618,18 @@ def main(cli_arguments=None):
         "blank_filenum": skipped_blank,
         "invalid_filenum": skipped_invalid_format,
         "missing_sig_files": skipped_missing_file,
+        "output_directory": str(output_directory),
         "output_csv": str(output_csv),
-        "log_file": str(log_path)
+        "heatmap_output": str(heatmap_output_path),
+        "spectral_graph_output": str(spectral_graph_output_path),
+        "log_file": str(log_path),
+        "summary_file": str(summary_path)
     }
 
     if args.output:
+        summary["requested_output"] = output_target["requested_output"]
         summary["custom_output_name"] = custom_prefix
+        summary["output_path_mode"] = is_path_output
 
     if raw_location_path is not None:
         summary["raw_location_path"] = str(raw_location_path)
@@ -601,8 +656,9 @@ def main(cli_arguments=None):
     return {
         "output_csv": output_csv,
         "merged_output_name": merged_output_name,
-        "heatmap_output_name": heatmap_output_name,
-        "spectral_graph_output_name": spectral_graph_output_name,
+        "heatmap_output_name": heatmap_output_path,
+        "spectral_graph_output_name": spectral_graph_output_path,
+        "output_directory": output_directory,
         "raw_location_path": raw_location_path,
         "dark_mode": args.dark_mode,
         "script_dir": script_dir
@@ -653,8 +709,7 @@ if __name__ == "__main__":
 
         print("\nRunning report.py ...")
         from report import main as report_main
-        # report_main(dark_mode=dark_mode)
-        report_main()
+        report_main(dark_mode=dark_mode)
         print("report.py completed successfully.")
 
     except Exception as error:
