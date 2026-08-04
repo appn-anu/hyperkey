@@ -3,7 +3,8 @@
 # Example:
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/processed_data/GH7-test-wheats-positions.csv"
+# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
+# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d 
 # python scripts/pipeline.py -h
 
 import argparse
@@ -94,7 +95,8 @@ Examples:
   python scripts/pipeline.py
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data
   python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o sydneyAPPN
-  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -l data/processed_data/GH7-test-wheats-positions.csv
+  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -l data/raw_location/species_locations.csv
+  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -d
 
 Output naming:
   Without -o:
@@ -136,7 +138,7 @@ Output naming:
         "--output",
         dest="output",
         default=None,
-        metavar="OUTPUT",
+        metavar="OUTPUT_NAME",
         help=(
             "Optional custom output prefix. Do not include a folder path or "
             "file extension."
@@ -151,7 +153,21 @@ Output naming:
         metavar="RAW_LOCATION_FILE",
         help=(
             "Optional path to the input file containing species location data. "
-            "This file is used to visualise the heatmap."
+            "This file is passed to visualise_heatmap.py."
+        )
+    )
+
+    parser.add_argument(
+        "-d",
+        "--dark",
+        dest="dark_mode",
+        action="store_false",
+        default=True,
+        help=(
+            "Disable dark mode for generated outputs. Dark mode is enabled by default. "
+            "Supplying this flag sets dark_mode=False. No value is needed after -d."
+            "by default; dark_mode=True."
+            "Just use -d to disable dark mode."
         )
     )
 
@@ -563,6 +579,8 @@ def main(cli_arguments=None):
     if raw_location_path is not None:
         summary["raw_location_path"] = str(raw_location_path)
 
+    summary["dark_mode"] = args.dark_mode
+
     with summary_path.open("w", encoding="utf-8") as file:
         json.dump(summary, file, indent=4)
 
@@ -586,6 +604,7 @@ def main(cli_arguments=None):
         "heatmap_output_name": heatmap_output_name,
         "spectral_graph_output_name": spectral_graph_output_name,
         "raw_location_path": raw_location_path,
+        "dark_mode": args.dark_mode,
         "script_dir": script_dir
     }
 
@@ -601,6 +620,7 @@ if __name__ == "__main__":
     heatmap_output_name = result["heatmap_output_name"]
     spectral_graph_output_name = result["spectral_graph_output_name"]
     raw_location_path = result["raw_location_path"]
+    dark_mode = result["dark_mode"]
 
     # ---------------------------
     # Run Follow-up Modules Sequentially
@@ -612,7 +632,8 @@ if __name__ == "__main__":
 
         heatmap_arguments = {
             "input_path": output_csv,
-            "output_name": heatmap_output_name
+            "output_name": heatmap_output_name,
+            "dark_mode": dark_mode
         }
 
         if raw_location_path is not None:
@@ -625,12 +646,14 @@ if __name__ == "__main__":
         from visualise_measurement import main as measurement_main
         measurement_main(
             input_path=output_csv,
-            output_name=spectral_graph_output_name
+            output_name=spectral_graph_output_name,
+            dark_mode=dark_mode
         )
         print("visualise_measurement.py completed successfully.")
 
         print("\nRunning report.py ...")
         from report import main as report_main
+        # report_main(dark_mode=dark_mode)
         report_main()
         print("report.py completed successfully.")
 
@@ -640,4 +663,3 @@ if __name__ == "__main__":
         raise SystemExit(1)
 
     print("\nFULL PIPELINE COMPLETED!")
- 
