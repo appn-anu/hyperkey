@@ -688,10 +688,11 @@ if __name__ == "__main__":
 
         heatmap_arguments = {
             "input_path": output_csv,
-            "output_name": heatmap_output_name,
+            # "output_name": heatmap_output_name,
+            "output_name": None,
             "dark_mode": dark_mode
         }
-
+        print(f"heatmap_arguments: {heatmap_arguments}")
         if raw_location_path is not None:
             heatmap_arguments["raw_location_path"] = raw_location_path
 
@@ -702,14 +703,17 @@ if __name__ == "__main__":
         from visualise_measurement import main as measurement_main
         measurement_main(
             input_path=output_csv,
-            output_name=spectral_graph_output_name,
+            # output_name=spectral_graph_output_name,
+            # output_name=None,
+            output_name="Spectral_graph",
             dark_mode=dark_mode
         )
         print("visualise_measurement.py completed successfully.")
 
         print("\nRunning report.py ...")
         from report import main as report_main
-        report_main(dark_mode=dark_mode)
+        # report_main(dark_mode=dark_mode)
+        report_main()
         print("report.py completed successfully.")
 
     except Exception as error:
