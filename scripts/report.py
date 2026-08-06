@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 import markdown
-import fitz
-
 import load_data as ld
 from datetime import datetime
 from playwright.sync_api import sync_playwright
@@ -113,8 +111,27 @@ This section includes:
 
 # This method uses the markdown file to generate the html file saves it in the 
 # output_data directory 
-def generate_html_report(data, report_text, project_root):
+def generate_html_report(data, report_text, project_root, dark_mode):
     html_body = markdown.markdown(report_text, extensions=["tables"])
+
+
+    if dark_mode:
+       
+       body_bg = "#121212"
+       body_color = "#e8e8e8"
+       table_bg = "#1a1a1a"
+       heading1 = "#66d9ef"
+       heading2 = "#7dd3fc"
+       heading3 = "#c084fc"
+       border = "#444"
+    else:
+       body_bg = "white"
+       body_color = "black"
+       table_bg = "white"
+       heading1 = "#0066cc"
+       heading2 = "#004c99"
+       heading3 = "#663399"
+       border = "#cccccc"
     
 
 
@@ -130,8 +147,8 @@ def generate_html_report(data, report_text, project_root):
     
         body {{
             font-family: "Arial", sans-serif;
-            background-color: #121212;
-            color: #e8e8e8;
+            background-color: {body_bg};
+            color: {body_color};
             max-width: 950px;
             margin: auto;
             padding: 40px;
@@ -139,19 +156,19 @@ def generate_html_report(data, report_text, project_root):
         }}
 
         h1 {{
-        color: #66d9ef;
+        color: {heading1};
         border-bottom: 2px solid #2d2d2d;
         padding-bottom: 10px;
         }}
 
         h2 {{
-        color: #7dd3fc;
+        color: {heading2};
         margin-top: 35px;
         page-break-after: avoid;
         }}
 
         h3 {{
-        color: #c084fc;
+        color: {heading3};
         page-break-after: avoid;
         }}
 
@@ -168,7 +185,7 @@ def generate_html_report(data, report_text, project_root):
         }}
 
         td {{
-        background-color: #1a1a1a;
+        background-color: {table_bg};
         }}
 
         th, td {{
@@ -177,9 +194,6 @@ def generate_html_report(data, report_text, project_root):
         text-align: left;
         }}
 
-        tr:nth-child(even) td {{
-        background-color: #202020;
-        }}
 
 
 
@@ -189,7 +203,7 @@ def generate_html_report(data, report_text, project_root):
             display: block;
             margin: 40px auto;
             border-radius: 8px;
-            border: 1px solid #444;
+            border: 1px solid {border};
             box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
             page-break-after: avoid;
 
@@ -278,11 +292,13 @@ def generate_pdf_report(data, project_root):
 def main():
     project_root = ld.get_project_root()
 
+    dark_mode = False
+
     data = load_summary_json(project_root)
 
     report_text = generate_markdown_report(data, project_root)
 
-    generate_html_report(data, report_text, project_root)
+    generate_html_report(data, report_text, project_root, dark_mode)
 
     generate_pdf_report(data, project_root)
 
