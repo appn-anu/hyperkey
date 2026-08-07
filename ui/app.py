@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import tempfile
 from pathlib import Path
@@ -113,8 +114,15 @@ class HyperkeyUI:
             on_click=self._run_cli,
         )
 
-        # Results/log controls
+        # Results / outputs / log controls
         self.results_content = ft.Column(spacing=12)
+
+        # Outputs are intentionally separate from Results. Results remains the
+        # run-statistics screen; Outputs is for generated files and report preview.
+        self.outputs_content = ft.Column(spacing=12)
+        self.output_status = ft.Text()
+        self.url_launcher = ft.UrlLauncher()
+
         self.logs_field = ft.TextField(
             label="Run log",
             multiline=True,
@@ -155,6 +163,11 @@ class HyperkeyUI:
                     icon=ft.Icons.ANALYTICS_OUTLINED,
                     selected_icon=ft.Icons.ANALYTICS,
                     label="Results",
+                ),
+                ft.NavigationBarDestination(
+                    icon=ft.Icons.FOLDER_COPY_OUTLINED,
+                    selected_icon=ft.Icons.FOLDER_COPY,
+                    label="Outputs",
                 ),
                 ft.NavigationBarDestination(
                     icon=ft.Icons.RECEIPT_LONG_OUTLINED,
@@ -398,6 +411,306 @@ class HyperkeyUI:
             ),
         )
 
+
+    def _output_directory(self) -> Path | None:
+        """Return the output directory for the most recent successful run."""
+        if self.last_result is None or not self.last_result.summary:
+            return None
+
+        value = self.last_result.summary.get("output_directory")
+        if not value:
+            return None
+
+        try:
+            return Path(str(value)).expanduser()
+        except Exception:
+            return None
+
+    @staticmethod
+    def _resolve_generated_path(value) -> Path | None:
+        """
+        Resolve an output path returned by the backend.
+
+        Visualisation modules sometimes receive an output base without a file
+        extension and append their own extension. If the exact path does not
+        exist, look for a file with the same base name and any extension.
+        """
+        if not value:
+            return None
+
+        candidate = Path(str(value)).expanduser()
+
+        if candidate.exists() and candidate.is_file():
+            return candidate
+
+        parent = candidate.parent
+        if not parent.exists():
+            return None
+
+        matches = sorted(
+            (path for path in parent.glob(candidate.name + ".*") if path.is_file()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        return matches[0] if matches else None
+
+    def _generated_output_files(self) -> list[tuple[str, Path]]:
+        """
+        Return the core generated files from the latest run.
+
+        This deliberately uses backend result fields instead of listing every
+        file in output_data, so files from older runs are not mixed into the
+        current Outputs screen.
+        """
+        if self.last_result is None or not self.last_result.summary:
+            return []
+
+        summary = self.last_result.summary
+        requested = [
+            ("Merged spectral data", summary.get("output_csv")),
+            ("Heatmap", summary.get("heatmap_output")),
+            ("Spectral graph", summary.get("spectral_graph_output")),
+        ]
+
+        # Show outlier output too whenever that stage generated a file.
+        outlier = summary.get("outlier_output")
+        if outlier:
+            requested.append(("Outlier analysis", outlier))
+
+        files: list[tuple[str, Path]] = []
+        seen: set[str] = set()
+
+        for label, value in requested:
+            path = self._resolve_generated_path(value)
+            if path is None:
+                continue
+
+            key = str(path.resolve())
+            if key in seen:
+                continue
+
+            seen.add(key)
+            files.append((label, path))
+
+        return files
+
+    def _markdown_report_path(self) -> Path | None:
+        """
+        Find the Markdown report generated for the latest run.
+
+        Markdown is used for the in-app preview because Flet has a native
+        Markdown control, while PDF/HTML require a separate viewer/web view.
+        """
+        output_directory = self._output_directory()
+        if output_directory is None or not output_directory.exists():
+            return None
+
+        candidates = [
+            path
+            for path in output_directory.rglob("*.md")
+            if path.is_file() and "report" in path.name.lower()
+        ]
+
+        if not candidates:
+            candidates = [
+                path for path in output_directory.rglob("*.md") if path.is_file()
+            ]
+
+        if not candidates:
+            return None
+
+        return max(candidates, key=lambda path: path.stat().st_mtime)
+
+    async def _open_output_path(self, path: Path) -> None:
+        """
+        Open an output using the operating system while keeping Hyperkey open.
+
+        Desktop opens the file in its associated application. On Android the
+        platform launcher chooses the associated viewer when available.
+        """
+        try:
+            resolved = path.resolve()
+            await self.url_launcher.launch_url(
+                resolved.as_uri(),
+                mode=ft.LaunchMode.EXTERNAL_APPLICATION,
+            )
+            self.output_status.value = f"Opened: {resolved.name}"
+        except Exception as exc:
+            self.output_status.value = (
+                f"Unable to open '{path.name}' automatically: {exc}"
+            )
+
+        self.page.update()
+
+    def _output_file_card(self, label: str, path: Path) -> ft.Card:
+        async def open_file(_e) -> None:
+            await self._open_output_path(path)
+
+        size_text = ""
+        try:
+            size = path.stat().st_size
+            if size < 1024:
+                size_text = f"{size} B"
+            elif size < 1024 * 1024:
+                size_text = f"{size / 1024:.1f} KB"
+            else:
+                size_text = f"{size / (1024 * 1024):.1f} MB"
+        except Exception:
+            pass
+
+        subtitle = str(path)
+        if size_text:
+            subtitle += f"\n{size_text}"
+
+        return ft.Card(
+            content=ft.ListTile(
+                leading=ft.Icon(ft.Icons.INSERT_DRIVE_FILE_OUTLINED),
+                title=ft.Text(label, weight=ft.FontWeight.W_600),
+                subtitle=ft.Text(subtitle, max_lines=3),
+                trailing=ft.Icon(ft.Icons.OPEN_IN_NEW),
+                on_click=open_file,
+            )
+        )
+
+    def _outputs_screen(self) -> ft.Control:
+        self._render_outputs_content()
+
+        return ft.Container(
+            padding=16,
+            expand=True,
+            content=ft.Column(
+                expand=True,
+                scroll=ft.ScrollMode.AUTO,
+                controls=[
+                    ft.Text("Outputs", theme_style=ft.TextThemeStyle.HEADLINE_SMALL),
+                    ft.Text(
+                        "Generated files from the latest Hyperkey run. "
+                        "Tap a file to open it without closing Hyperkey.",
+                        theme_style=ft.TextThemeStyle.BODY_SMALL,
+                    ),
+                    self.output_status,
+                    self.outputs_content,
+                ],
+            ),
+        )
+
+    def _render_outputs_content(self) -> None:
+        self.outputs_content.controls.clear()
+
+        if self.last_result is None:
+            self.outputs_content.controls.append(
+                ft.Card(
+                    content=ft.Container(
+                        padding=20,
+                        content=ft.Text("No Hyperkey run has been started yet."),
+                    )
+                )
+            )
+            return
+
+        if not self.last_result.success:
+            self.outputs_content.controls.append(
+                ft.Card(
+                    content=ft.Container(
+                        padding=20,
+                        content=ft.Text(
+                            "The latest run did not complete successfully, "
+                            "so generated outputs are not available."
+                        ),
+                    )
+                )
+            )
+            return
+
+        generated_files = self._generated_output_files()
+
+        if generated_files:
+            self.outputs_content.controls.append(
+                section_card(
+                    "Generated files",
+                    subtitle="Tap any file to open it in the default application.",
+                    controls=[
+                        self._output_file_card(label, path)
+                        for label, path in generated_files
+                    ],
+                )
+            )
+        else:
+            self.outputs_content.controls.append(
+                section_card(
+                    "Generated files",
+                    controls=[
+                        ft.Text(
+                            "No generated output files could be resolved from "
+                            "the latest backend result."
+                        )
+                    ],
+                )
+            )
+
+        report_path = self._markdown_report_path()
+
+        if report_path is None:
+            self.outputs_content.controls.append(
+                section_card(
+                    "Report preview",
+                    subtitle="Markdown is the native in-app report format used by Hyperkey.",
+                    controls=[
+                        ft.Text(
+                            "No Markdown report was found in the current output directory."
+                        )
+                    ],
+                )
+            )
+            return
+
+        try:
+            markdown_text = report_path.read_text(
+                encoding="utf-8",
+                errors="replace",
+            )
+        except Exception as exc:
+            self.outputs_content.controls.append(
+                section_card(
+                    "Report preview",
+                    controls=[ft.Text(f"Unable to read report: {exc}")],
+                )
+            )
+            return
+
+        async def open_report(_e) -> None:
+            await self._open_output_path(report_path)
+
+        self.outputs_content.controls.append(
+            section_card(
+                "Report preview",
+                subtitle=(
+                    f"{report_path.name} • Markdown is rendered directly inside Flet."
+                ),
+                controls=[
+                    ft.Row(
+                        controls=[
+                            ft.Text(str(report_path), expand=True, selectable=True),
+                            ft.Button(
+                                content="Open report",
+                                icon=ft.Icons.OPEN_IN_NEW,
+                                on_click=open_report,
+                            ),
+                        ],
+                        wrap=True,
+                    ),
+                    ft.Container(
+                        padding=12,
+                        content=ft.Markdown(
+                            value=markdown_text,
+                            selectable=True,
+                            extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+                        ),
+                    ),
+                ],
+            )
+        )
+
     def _logs_screen(self) -> ft.Control:
         return ft.Container(
             padding=16,
@@ -412,7 +725,13 @@ class HyperkeyUI:
         )
 
     def _render_screen(self) -> None:
-        screens = [self._run_screen, self._cli_screen, self._results_screen, self._logs_screen]
+        screens = [
+            self._run_screen,
+            self._cli_screen,
+            self._results_screen,
+            self._outputs_screen,
+            self._logs_screen,
+        ]
         self.content_host.content = screens[self.current_screen]()
         self.page.update()
 
@@ -488,7 +807,7 @@ class HyperkeyUI:
         if self._mounted:
             self.page.update()
 
-    def _run_form(self, _e) -> None:
+    async def _run_form(self, _e) -> None:
         self.processing_bar.visible = True
         self.run_button.disabled = True
         self.form_status.value = "Running Hyperkey..."
@@ -496,25 +815,50 @@ class HyperkeyUI:
 
         try:
             config = self._config_from_form()
-            result = self.service.run_config(config)
+
+            # Hyperkey's processing stack is synchronous and report generation
+            # may use Playwright's Sync API. Run the complete backend in a worker
+            # thread so it does not execute inside Flet's asyncio event loop.
+            result = await asyncio.to_thread(
+                self.service.run_config,
+                config,
+            )
+
         except Exception as exc:
-            result = RunResult(False, f"Unable to start Hyperkey: {exc}", logs=[f"ERROR: {exc}"])
+            result = RunResult(
+                False,
+                f"Unable to start Hyperkey: {exc}",
+                logs=[f"ERROR: {exc}"],
+            )
+
         finally:
             self.processing_bar.visible = False
             self.run_button.disabled = False
 
         self._handle_result(result, self.form_status)
 
-    def _run_cli(self, _e) -> None:
+    async def _run_cli(self, _e) -> None:
         self.cli_run_button.disabled = True
         self.cli_status.value = "Running Hyperkey arguments..."
         self.page.update()
 
         try:
             arguments = self.service.parse_cli_text(self.cli_field.value or "")
-            result = self.service.run_arguments(arguments)
+
+            # Keep synchronous backend libraries, including Playwright Sync API,
+            # outside Flet's asyncio event loop.
+            result = await asyncio.to_thread(
+                self.service.run_arguments,
+                arguments,
+            )
+
         except Exception as exc:
-            result = RunResult(False, f"Invalid command/arguments: {exc}", logs=[f"ERROR: {exc}"])
+            result = RunResult(
+                False,
+                f"Invalid command/arguments: {exc}",
+                logs=[f"ERROR: {exc}"],
+            )
+
         finally:
             self.cli_run_button.disabled = False
 
@@ -590,6 +934,10 @@ class HyperkeyUI:
                     help_item(
                         "CLI mode",
                         "Failsafe/advanced mode. Enter only arguments or paste a complete python hyperkey.py command.",
+                    ),
+                    help_item(
+                        "Outputs",
+                        "Shows the files generated by the latest successful run. Tap a file to open it in the default application while Hyperkey remains open. The Markdown report is also previewed directly inside the app.",
                     ),
                     help_item(
                         "Results and Logs",
