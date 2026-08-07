@@ -38,7 +38,7 @@ The final public `hyperkey.py` entrypoint is deliberately not created in this UI
 Install the UI dependency:
 
 ```bash
-pip install -r requirements-ui.txt
+pip install -r requirements.txt
 ```
 
 Run:
