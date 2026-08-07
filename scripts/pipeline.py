@@ -638,8 +638,8 @@ def main(cli_arguments=None):
         "missing_sig_files": skipped_missing_file,
         "output_directory": str(output_directory),
         "output_csv": str(output_csv),
-        "heatmap_output": str(heatmap_output_path),
-        "spectral_graph_output": str(spectral_graph_output_path),
+        "heatmap_output": str(heatmap_output_path)+".png",
+        "spectral_graph_output": str(spectral_graph_output_path)+".png",
         "outlier_output": str(outlier_output_path) if args.outlier_analysis else None,
         "log_file": str(log_path),
         "summary_file": str(summary_path)

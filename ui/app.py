@@ -951,17 +951,17 @@ class HyperkeyUI:
                     f"{report_path.name} • Markdown is rendered directly inside Flet."
                 ),
                 controls=[
-                    ft.Row(
-                        controls=[
-                            ft.Text(str(report_path), expand=True, selectable=True),
-                            ft.Button(
-                                content="Open report",
-                                icon=ft.Icons.OPEN_IN_NEW,
-                                on_click=open_report,
-                            ),
-                        ],
-                        wrap=True,
-                    ),
+                    # ft.Row(
+                    #     controls=[
+                    #         ft.Text(str(report_path), expand=True, selectable=True),
+                    #         ft.Button(
+                    #             content="Open report",
+                    #             icon=ft.Icons.OPEN_IN_NEW,
+                    #             on_click=open_report,
+                    #         ),
+                    #     ],
+                    #     wrap=True,
+                    # ),
                     ft.Container(
                         padding=12,
                         content=ft.Column(
