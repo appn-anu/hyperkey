@@ -1,21 +1,82 @@
 #!/usr/bin/env python3
-"""Public Hyperkey entrypoint.
+
+"""
+Public Hyperkey entrypoint.
 
 Usage
 -----
+
 Open the Flet application:
+
     python hyperkey.py
 
+
 Run directly from the command line:
-    python hyperkey.py metadata.csv -r raw_data -o result
+
+    python hyperkey.py metadata.csv -r raw_data
+
+
+With output name:
+
+    python hyperkey.py metadata.csv -r raw_data -o sydneyAPPN
+
+
+With location data:
+
+    python hyperkey.py metadata.csv \
+        -r raw_data \
+        -l species_locations.csv
+
+
+With outlier analysis:
+
+    python hyperkey.py metadata.csv \
+        -r raw_data \
+        --outlier-analysis
 """
 
 from __future__ import annotations
 
+import importlib
 import sys
+from pathlib import Path
+
+
+def project_root() -> Path:
+    """Return the Hyperkey project root."""
+    return Path(__file__).resolve().parent
+
+
+def _import_workflow_module():
+    """
+    Import scripts/workflow.py.
+
+    scripts/ is added to sys.path because the existing Hyperkey modules
+    currently use direct imports such as:
+
+        from visualise_heatmap import main
+        from pipeline import main
+
+    This keeps those modules working without requiring scripts/
+    to become a Python package.
+    """
+    scripts_dir = project_root() / "scripts"
+
+    if not scripts_dir.exists():
+        raise RuntimeError(
+            f"Hyperkey scripts directory was not found: {scripts_dir}"
+        )
+
+    scripts_text = str(scripts_dir)
+
+    if scripts_text not in sys.path:
+        sys.path.insert(0, scripts_text)
+
+    return importlib.import_module("workflow")
 
 
 def run_gui() -> None:
+    """Launch the shared Flet desktop/Android interface."""
     import flet as ft
 
     from ui.app import main as flet_main
@@ -24,29 +85,55 @@ def run_gui() -> None:
 
 
 def run_cli(arguments: list[str]) -> int:
-    from ui.backend import run_hyperkey_backend
+    """
+    Run Hyperkey directly from command-line arguments.
 
+    CLI execution intentionally calls workflow.py directly rather than
+    passing through the Flet UI backend.
+    """
     try:
-        result = run_hyperkey_backend(arguments)
+        workflow = _import_workflow_module()
+
+        runner = getattr(workflow, "run_pipeline", None)
+
+        if runner is None:
+            raise RuntimeError(
+                "scripts/workflow.py does not provide "
+                "run_pipeline(cli_arguments=None)."
+            )
+
+        result = runner(arguments)
+
     except Exception as exc:
-        print(f"Hyperkey failed: {exc}")
+        print(f"\nHyperkey failed: {exc}")
         return 1
 
     if result is None:
-        print("Hyperkey stopped because pipeline processing failed.")
+        print(
+            "\nHyperkey stopped because pipeline processing failed."
+        )
         return 1
 
-    print("\nFULL HYPERKEY PIPELINE COMPLETED!")
     return 0
 
 
 def main() -> int:
+    """
+    Select GUI or CLI mode.
+
+    No arguments:
+        Launch Flet.
+
+    One or more arguments:
+        Run the Hyperkey CLI workflow.
+    """
     arguments = sys.argv[1:]
 
     if arguments:
         return run_cli(arguments)
 
     run_gui()
+
     return 0
 
 

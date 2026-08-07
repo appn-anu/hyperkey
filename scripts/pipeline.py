@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
 # Example:
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
-# python scripts/pipeline.py -h
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
+# python hyperkey.py -h
 
 import argparse
 import csv
@@ -101,15 +101,18 @@ def build_output_names(custom_prefix=None):
         merged_output_name = f"{custom_prefix}_merged_spectral_data_{date_stamp}"
         heatmap_output_name = f"{custom_prefix}_heatmap_{date_stamp}"
         spectral_graph_output_name = f"{custom_prefix}_SpectralGraph_{date_stamp}"
+        outlier_output_name = f"{custom_prefix}_outlier_analysis_{date_stamp}"
     else:
         merged_output_name = f"merged_spectral_data_{date_stamp}"
         heatmap_output_name = f"heatmap_{date_stamp}"
         spectral_graph_output_name = f"SpectralGraph_{date_stamp}"
+        outlier_output_name = f"outlier_analysis_{date_stamp}"
 
     return {
         "merged_output_name": merged_output_name,
         "heatmap_output_name": heatmap_output_name,
-        "spectral_graph_output_name": spectral_graph_output_name
+        "spectral_graph_output_name": spectral_graph_output_name,
+        "outlier_output_name": outlier_output_name
     }
 
 def create_argument_parser():
@@ -123,12 +126,13 @@ def create_argument_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python scripts/pipeline.py
-  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data
-  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o sydneyAPPN
-  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o "D:/Results/WheatData/sydneyAPPN"
-  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -l data/raw_location/species_locations.csv
-  python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -d
+  python hyperkey.py
+  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data
+  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o sydneyAPPN
+  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o "D:/Results/WheatData/sydneyAPPN"
+  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -l data/raw_location/species_locations.csv
+  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -d
+  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data --outlier-analysis
 
 Output naming:
   Without -o:
@@ -207,6 +211,18 @@ Output naming:
             "This flag is passed to visualise_heatmap.py, visualise_measurement.py, and report.py. "
             "by default dark_mode = True;"
             "Supplying this flag passes dark_mode=False. just -d and no value is needed after that."
+        )
+    )
+
+
+    parser.add_argument(
+        "--outlier-analysis",
+        dest="outlier_analysis",
+        action="store_true",
+        default=False,
+        help=(
+            "Run outlier analysis after the merged spectral CSV is created. "
+            "The flag does not require a value."
         )
     )
 
@@ -376,10 +392,12 @@ def main(cli_arguments=None):
     merged_output_name = output_names["merged_output_name"]
     heatmap_output_name = output_names["heatmap_output_name"]
     spectral_graph_output_name = output_names["spectral_graph_output_name"]
+    outlier_output_name = output_names["outlier_output_name"]
 
     output_csv = output_directory / f"{merged_output_name}.csv"
     heatmap_output_path = output_directory / heatmap_output_name
     spectral_graph_output_path = output_directory / spectral_graph_output_name
+    outlier_output_path = output_directory / outlier_output_name
 
     raw_location_path = None
     if args.raw_location_path:
@@ -622,6 +640,7 @@ def main(cli_arguments=None):
         "output_csv": str(output_csv),
         "heatmap_output": str(heatmap_output_path),
         "spectral_graph_output": str(spectral_graph_output_path),
+        "outlier_output": str(outlier_output_path) if args.outlier_analysis else None,
         "log_file": str(log_path),
         "summary_file": str(summary_path)
     }
@@ -635,6 +654,7 @@ def main(cli_arguments=None):
         summary["raw_location_path"] = str(raw_location_path)
 
     summary["dark_mode"] = args.dark_mode
+    summary["outlier_analysis"] = args.outlier_analysis
 
     with summary_path.open("w", encoding="utf-8") as file:
         json.dump(summary, file, indent=4)
@@ -658,67 +678,26 @@ def main(cli_arguments=None):
         "merged_output_name": merged_output_name,
         "heatmap_output_name": heatmap_output_path,
         "spectral_graph_output_name": spectral_graph_output_path,
+        "outlier_output_name": outlier_output_path,
         "output_directory": output_directory,
         "raw_location_path": raw_location_path,
         "dark_mode": args.dark_mode,
+        "outlier_analysis": args.outlier_analysis,
+        "summary_path": summary_path,
+        "log_path": log_path,
+        "total_rows": len(all_rows),
+        "matched_files": processed_count,
+        "warnings_logged": len(log_entries),
         "script_dir": script_dir
     }
 
-
 if __name__ == "__main__":
-    result = main()
-
-    if not result:
-        print("\nPipeline stopped because main processing failed.")
-        raise SystemExit(1)
-
-    output_csv = result["output_csv"]
-    heatmap_output_name = result["heatmap_output_name"]
-    spectral_graph_output_name = result["spectral_graph_output_name"]
-    raw_location_path = result["raw_location_path"]
-    dark_mode = result["dark_mode"]
-
-    # ---------------------------
-    # Run Follow-up Modules Sequentially
-    # ---------------------------
-
+    # Backward compatibility for users who still run scripts/pipeline.py directly.
+    # The preferred public entrypoint is hyperkey.py.
     try:
-        print("\nRunning visualise_heatmap.py ...")
-        from visualise_heatmap import main as heatmap_main
-
-        heatmap_arguments = {
-            "input_path": output_csv,
-            # "output_name": heatmap_output_name,
-            "output_name": None,
-            "dark_mode": dark_mode
-        }
-        print(f"heatmap_arguments: {heatmap_arguments}")
-        if raw_location_path is not None:
-            heatmap_arguments["raw_location_path"] = raw_location_path
-
-        heatmap_main(**heatmap_arguments)
-        print("visualise_heatmap.py completed successfully.")
-
-        print("\nRunning visualise_measurement.py ...")
-        from visualise_measurement import main as measurement_main
-        measurement_main(
-            input_path=output_csv,
-            # output_name=spectral_graph_output_name,
-            # output_name=None,
-            output_name="Spectral_graph",
-            dark_mode=dark_mode
-        )
-        print("visualise_measurement.py completed successfully.")
-
-        print("\nRunning report.py ...")
-        from report import main as report_main
-        # report_main(dark_mode=dark_mode)
-        report_main()
-        print("report.py completed successfully.")
-
+        from workflow import run_pipeline
+        run_pipeline()
     except Exception as error:
-        print("\nPipeline stopped because a follow-up module failed.")
-        print(f"Error: {error}")
+        print(f"\nHyperkey failed: {error}")
         raise SystemExit(1)
 
-    print("\nFULL PIPELINE COMPLETED!")
