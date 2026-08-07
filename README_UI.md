@@ -13,7 +13,7 @@ hyperkey/
 │   ├── models.py
 │   └── pipeline_service.py
 ├── run_ui.py                 # temporary UI-only development launcher
-└── requirements-ui.txt       # merge into the main requirements later
+└── requirements.txt       
 ```
 
 The final public `hyperkey.py` entrypoint is deliberately not created in this UI-only pass. It should be added when the pipeline/CLI integration is updated.
