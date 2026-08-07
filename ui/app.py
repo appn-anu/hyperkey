@@ -580,136 +580,258 @@ class HyperkeyUI:
         report_path: Path,
     ) -> list[ft.Control]:
         """
-        Render Markdown while resolving local image references relative to the
-        Markdown file itself.
+        Render the generated Markdown report using ordinary Flet controls.
 
-        Flet Markdown does not reliably resolve generated relative filesystem
-        references such as:
+        We intentionally avoid ft.Markdown here. On some desktop Flet builds,
+        the Markdown renderer can reserve a very large vertical surface even
+        when fit_content=True. Using Text/Image controls keeps the report height
+        equal to its actual content and also gives reliable local-image support.
 
-            ![NDVI Heatmap](_heatmap_.png)
-
-        for desktop/Android report files. We therefore split the Markdown at
-        image expressions and render those images using ft.Image with raw bytes.
-
-        This also keeps Markdown blocks content-sized, avoiding the large empty
-        vertical area produced by an unconstrained Markdown widget.
+        Supported report elements:
+          - #, ##, ###, #### headings
+          - normal paragraphs
+          - unordered and ordered list items
+          - horizontal rules
+          - local Markdown images
+          - simple Markdown tables (displayed as compact monospace text)
         """
         controls: list[ft.Control] = []
 
-        image_pattern = re.compile(
-            r"!\[([^\]]*)\]\(([^)]+)\)"
-        )
+        image_pattern = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+        lines = markdown_text.splitlines()
 
-        cursor = 0
+        paragraph_lines: list[str] = []
+        table_lines: list[str] = []
 
-        for match in image_pattern.finditer(markdown_text):
-            before = markdown_text[cursor:match.start()].strip()
+        def flush_paragraph() -> None:
+            if not paragraph_lines:
+                return
 
-            if before:
+            value = " ".join(
+                line.strip()
+                for line in paragraph_lines
+                if line.strip()
+            ).strip()
+
+            paragraph_lines.clear()
+
+            if value:
                 controls.append(
-                    ft.Markdown(
-                        value=before,
+                    ft.Text(
+                        value,
                         selectable=True,
-                        extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
-                        fit_content=True,
+                        size=14,
                     )
                 )
 
-            alt_text = match.group(1).strip()
-            image_reference = match.group(2).strip()
+        def flush_table() -> None:
+            if not table_lines:
+                return
 
-            # Markdown image paths may optionally be wrapped in <...>.
-            image_reference = image_reference.strip("<>")
+            # Keep Markdown tables compact and readable without invoking the
+            # Markdown/WebView renderer that caused the oversized blank area.
+            cleaned = []
+            for line in table_lines:
+                stripped = line.strip()
+                if re.fullmatch(r"\|?[\s:\-\|]+\|?", stripped):
+                    continue
+                cleaned.append(stripped)
 
-            # Ignore URL images here; let Markdown handle those normally.
+            table_lines.clear()
+
+            if cleaned:
+                controls.append(
+                    ft.Container(
+                        padding=10,
+                        border=ft.Border.all(1),
+                        border_radius=8,
+                        content=ft.Text(
+                            "\n".join(cleaned),
+                            selectable=True,
+                            font_family="monospace",
+                            size=12,
+                        ),
+                    )
+                )
+
+        def add_image(alt_text: str, image_reference: str) -> None:
+            image_reference = image_reference.strip().strip("<>")
+
             if image_reference.lower().startswith(
                 ("http://", "https://", "data:")
             ):
                 controls.append(
-                    ft.Markdown(
-                        value=match.group(0),
+                    ft.Text(
+                        f"{alt_text or 'Image'}: {image_reference}",
                         selectable=True,
-                        extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
-                        fit_content=True,
                     )
                 )
-            else:
-                image_path = Path(image_reference)
+                return
 
-                if not image_path.is_absolute():
-                    image_path = report_path.parent / image_path
+            image_path = Path(image_reference)
 
+            if not image_path.is_absolute():
+                image_path = report_path.parent / image_path
+
+            try:
                 image_path = image_path.resolve()
+            except Exception:
+                pass
 
-                if image_path.exists() and image_path.is_file():
-                    try:
-                        image_bytes = image_path.read_bytes()
-
-                        controls.append(
-                            ft.Container(
-                                padding=ft.Padding.only(top=4, bottom=12),
-                                content=ft.Column(
-                                    spacing=6,
-                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                    controls=[
-                                        ft.Image(
-                                            src=image_bytes,
-                                            fit=ft.BoxFit.CONTAIN,
-                                            error_content=ft.Text(
-                                                f"Unable to display image: "
-                                                f"{image_path.name}"
-                                            ),
-                                        ),
-                                        ft.Text(
-                                            alt_text,
-                                            theme_style=ft.TextThemeStyle.BODY_SMALL,
-                                            text_align=ft.TextAlign.CENTER,
-                                            visible=bool(alt_text),
-                                        ),
-                                    ],
-                                ),
-                            )
-                        )
-
-                    except Exception as exc:
-                        controls.append(
-                            ft.Text(
-                                f"Unable to load image '{image_reference}': {exc}"
-                            )
-                        )
-                else:
-                    controls.append(
-                        ft.Container(
-                            padding=8,
-                            content=ft.Text(
-                                f"Image not found: {image_reference}"
-                            ),
-                        )
+            if not image_path.exists() or not image_path.is_file():
+                controls.append(
+                    ft.Text(
+                        f"Image not found: {image_reference}",
+                        selectable=True,
                     )
-
-            cursor = match.end()
-
-        remaining = markdown_text[cursor:].strip()
-
-        if remaining:
-            controls.append(
-                ft.Markdown(
-                    value=remaining,
-                    selectable=True,
-                    extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
-                    fit_content=True,
                 )
-            )
+                return
+
+            try:
+                image_bytes = image_path.read_bytes()
+
+                controls.append(
+                    ft.Container(
+                        padding=ft.Padding.only(top=6, bottom=14),
+                        content=ft.Column(
+                            spacing=6,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=[
+                                ft.Image(
+                                    src=image_bytes,
+                                    fit=ft.BoxFit.CONTAIN,
+                                ),
+                                ft.Text(
+                                    alt_text,
+                                    theme_style=ft.TextThemeStyle.BODY_SMALL,
+                                    text_align=ft.TextAlign.CENTER,
+                                    visible=bool(alt_text),
+                                ),
+                            ],
+                        ),
+                    )
+                )
+            except Exception as exc:
+                controls.append(
+                    ft.Text(
+                        f"Unable to load image '{image_reference}': {exc}",
+                        selectable=True,
+                    )
+                )
+
+        for raw_line in lines:
+            line = raw_line.rstrip()
+            stripped = line.strip()
+
+            # Blank line ends paragraph/table blocks.
+            if not stripped:
+                flush_paragraph()
+                flush_table()
+                continue
+
+            image_match = image_pattern.fullmatch(stripped)
+            if image_match:
+                flush_paragraph()
+                flush_table()
+                add_image(
+                    image_match.group(1).strip(),
+                    image_match.group(2).strip(),
+                )
+                continue
+
+            # Markdown tables.
+            if stripped.startswith("|") and "|" in stripped[1:]:
+                flush_paragraph()
+                table_lines.append(stripped)
+                continue
+            else:
+                flush_table()
+
+            # Headings.
+            heading_match = re.match(r"^(#{1,4})\s+(.+)$", stripped)
+            if heading_match:
+                flush_paragraph()
+
+                level = len(heading_match.group(1))
+                heading_text = heading_match.group(2).strip()
+
+                heading_sizes = {
+                    1: 28,
+                    2: 23,
+                    3: 19,
+                    4: 16,
+                }
+
+                controls.append(
+                    ft.Container(
+                        padding=ft.Padding.only(
+                            top=12 if level <= 2 else 8,
+                            bottom=4,
+                        ),
+                        content=ft.Text(
+                            heading_text,
+                            selectable=True,
+                            size=heading_sizes[level],
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                    )
+                )
+                continue
+
+            # Horizontal rule.
+            if re.fullmatch(r"[-*_]{3,}", stripped):
+                flush_paragraph()
+                controls.append(ft.Divider())
+                continue
+
+            # Unordered list.
+            unordered = re.match(r"^[-*+]\s+(.+)$", stripped)
+            if unordered:
+                flush_paragraph()
+                controls.append(
+                    ft.Row(
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                        spacing=8,
+                        controls=[
+                            ft.Text("•"),
+                            ft.Text(
+                                unordered.group(1).strip(),
+                                selectable=True,
+                                expand=True,
+                            ),
+                        ],
+                    )
+                )
+                continue
+
+            # Ordered list.
+            ordered = re.match(r"^(\d+)\.\s+(.+)$", stripped)
+            if ordered:
+                flush_paragraph()
+                controls.append(
+                    ft.Row(
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                        spacing=8,
+                        controls=[
+                            ft.Text(f"{ordered.group(1)}."),
+                            ft.Text(
+                                ordered.group(2).strip(),
+                                selectable=True,
+                                expand=True,
+                            ),
+                        ],
+                    )
+                )
+                continue
+
+            # All remaining lines are collected into a normal paragraph.
+            paragraph_lines.append(stripped)
+
+        flush_paragraph()
+        flush_table()
 
         if not controls:
-            controls.append(
-                ft.Markdown(
-                    value=markdown_text,
-                    selectable=True,
-                    extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
-                    fit_content=True,
-                )
-            )
+            controls.append(ft.Text("The report is empty."))
 
         return controls
 
