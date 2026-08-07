@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import tempfile
 from pathlib import Path
 from uuid import uuid4
@@ -572,6 +573,146 @@ class HyperkeyUI:
             )
         )
 
+
+    def _markdown_report_controls(
+        self,
+        markdown_text: str,
+        report_path: Path,
+    ) -> list[ft.Control]:
+        """
+        Render Markdown while resolving local image references relative to the
+        Markdown file itself.
+
+        Flet Markdown does not reliably resolve generated relative filesystem
+        references such as:
+
+            ![NDVI Heatmap](_heatmap_.png)
+
+        for desktop/Android report files. We therefore split the Markdown at
+        image expressions and render those images using ft.Image with raw bytes.
+
+        This also keeps Markdown blocks content-sized, avoiding the large empty
+        vertical area produced by an unconstrained Markdown widget.
+        """
+        controls: list[ft.Control] = []
+
+        image_pattern = re.compile(
+            r"!\[([^\]]*)\]\(([^)]+)\)"
+        )
+
+        cursor = 0
+
+        for match in image_pattern.finditer(markdown_text):
+            before = markdown_text[cursor:match.start()].strip()
+
+            if before:
+                controls.append(
+                    ft.Markdown(
+                        value=before,
+                        selectable=True,
+                        extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+                        fit_content=True,
+                    )
+                )
+
+            alt_text = match.group(1).strip()
+            image_reference = match.group(2).strip()
+
+            # Markdown image paths may optionally be wrapped in <...>.
+            image_reference = image_reference.strip("<>")
+
+            # Ignore URL images here; let Markdown handle those normally.
+            if image_reference.lower().startswith(
+                ("http://", "https://", "data:")
+            ):
+                controls.append(
+                    ft.Markdown(
+                        value=match.group(0),
+                        selectable=True,
+                        extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+                        fit_content=True,
+                    )
+                )
+            else:
+                image_path = Path(image_reference)
+
+                if not image_path.is_absolute():
+                    image_path = report_path.parent / image_path
+
+                image_path = image_path.resolve()
+
+                if image_path.exists() and image_path.is_file():
+                    try:
+                        image_bytes = image_path.read_bytes()
+
+                        controls.append(
+                            ft.Container(
+                                padding=ft.Padding.only(top=4, bottom=12),
+                                content=ft.Column(
+                                    spacing=6,
+                                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                    controls=[
+                                        ft.Image(
+                                            src=image_bytes,
+                                            fit=ft.BoxFit.CONTAIN,
+                                            error_content=ft.Text(
+                                                f"Unable to display image: "
+                                                f"{image_path.name}"
+                                            ),
+                                        ),
+                                        ft.Text(
+                                            alt_text,
+                                            theme_style=ft.TextThemeStyle.BODY_SMALL,
+                                            text_align=ft.TextAlign.CENTER,
+                                            visible=bool(alt_text),
+                                        ),
+                                    ],
+                                ),
+                            )
+                        )
+
+                    except Exception as exc:
+                        controls.append(
+                            ft.Text(
+                                f"Unable to load image '{image_reference}': {exc}"
+                            )
+                        )
+                else:
+                    controls.append(
+                        ft.Container(
+                            padding=8,
+                            content=ft.Text(
+                                f"Image not found: {image_reference}"
+                            ),
+                        )
+                    )
+
+            cursor = match.end()
+
+        remaining = markdown_text[cursor:].strip()
+
+        if remaining:
+            controls.append(
+                ft.Markdown(
+                    value=remaining,
+                    selectable=True,
+                    extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+                    fit_content=True,
+                )
+            )
+
+        if not controls:
+            controls.append(
+                ft.Markdown(
+                    value=markdown_text,
+                    selectable=True,
+                    extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+                    fit_content=True,
+                )
+            )
+
+        return controls
+
     def _outputs_screen(self) -> ft.Control:
         self._render_outputs_content()
 
@@ -701,10 +842,12 @@ class HyperkeyUI:
                     ),
                     ft.Container(
                         padding=12,
-                        content=ft.Markdown(
-                            value=markdown_text,
-                            selectable=True,
-                            extension_set=ft.MarkdownExtensionSet.GITHUB_WEB,
+                        content=ft.Column(
+                            spacing=8,
+                            controls=self._markdown_report_controls(
+                                markdown_text,
+                                report_path,
+                            ),
                         ),
                     ),
                 ],
