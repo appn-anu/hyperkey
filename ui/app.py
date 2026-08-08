@@ -471,6 +471,10 @@ class HyperkeyUI:
             ("Merged spectral data", summary.get("output_csv")),
             ("Heatmap", summary.get("heatmap_output")),
             ("Spectral graph", summary.get("spectral_graph_output")),
+            ("Markdown report", summary.get("report_markdown_output")),
+            ("Summary report", summary.get("summary_file")),
+            ("Log file", summary.get("log_file")),
+            ("Output directory", summary.get("output_directory")),
         ]
 
         # Show outlier output too whenever that stage generated a file.
@@ -497,30 +501,26 @@ class HyperkeyUI:
 
     def _markdown_report_path(self) -> Path | None:
         """
-        Find the Markdown report generated for the latest run.
-
-        Markdown is used for the in-app preview because Flet has a native
-        Markdown control, while PDF/HTML require a separate viewer/web view.
+        Return the Markdown report path saved by the backend
+        in summary["report_markdown_output"].
         """
-        output_directory = self._output_directory()
-        if output_directory is None or not output_directory.exists():
+        if self.last_result is None or not self.last_result.summary:
             return None
 
-        candidates = [
-            path
-            for path in output_directory.rglob("*.md")
-            if path.is_file() and "report" in path.name.lower()
-        ]
-
-        if not candidates:
-            candidates = [
-                path for path in output_directory.rglob("*.md") if path.is_file()
-            ]
-
-        if not candidates:
+        value = self.last_result.summary.get("report_markdown_output")
+        if not value:
             return None
 
-        return max(candidates, key=lambda path: path.stat().st_mtime)
+        try:
+            report_path = Path(str(value)).expanduser()
+
+            if report_path.exists() and report_path.is_file():
+                return report_path
+
+        except Exception:
+            pass
+
+        return None
 
     async def _open_output_path(self, path: Path) -> None:
         """
@@ -910,7 +910,7 @@ class HyperkeyUI:
                     ],
                 )
             )
-
+        print(controls := self.outputs_content.controls)
         report_path = self._markdown_report_path()
 
         if report_path is None:
@@ -951,17 +951,18 @@ class HyperkeyUI:
                     f"{report_path.name} • Markdown is rendered directly inside Flet."
                 ),
                 controls=[
-                    # ft.Row(
-                    #     controls=[
-                    #         ft.Text(str(report_path), expand=True, selectable=True),
-                    #         ft.Button(
-                    #             content="Open report",
-                    #             icon=ft.Icons.OPEN_IN_NEW,
-                    #             on_click=open_report,
-                    #         ),
-                    #     ],
-                    #     wrap=True,
-                    # ),
+                    ft.Row(
+                        controls=[
+                            # ft.Text(str(report_path), expand=False, selectable=False), 
+                            # A long unwanted space issue, need fix later. Feature not requested by user, so commented out for now.
+                            ft.Button(
+                                content="Open report",
+                                icon=ft.Icons.OPEN_IN_NEW,
+                                on_click=open_report,
+                            ),
+                        ],
+                        wrap=True,
+                    ),
                     ft.Container(
                         padding=12,
                         content=ft.Column(
