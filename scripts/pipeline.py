@@ -2,7 +2,7 @@
 
 # Example:
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
+# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o data/TestHyperKey/sydneyAPPN
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
 # python scripts/pipeline.py -h
@@ -101,15 +101,18 @@ def build_output_names(custom_prefix=None):
         merged_output_name = f"{custom_prefix}_merged_spectral_data_{date_stamp}"
         heatmap_output_name = f"{custom_prefix}_heatmap_{date_stamp}"
         spectral_graph_output_name = f"{custom_prefix}_SpectralGraph_{date_stamp}"
+        report_output_name = f"{custom_prefix}_report_{date_stamp}"
     else:
         merged_output_name = f"merged_spectral_data_{date_stamp}"
         heatmap_output_name = f"heatmap_{date_stamp}"
         spectral_graph_output_name = f"SpectralGraph_{date_stamp}"
+        report_output_name = f"report_{date_stamp}"
 
     return {
         "merged_output_name": merged_output_name,
         "heatmap_output_name": heatmap_output_name,
-        "spectral_graph_output_name": spectral_graph_output_name
+        "spectral_graph_output_name": spectral_graph_output_name,
+        "report_output_name": report_output_name
     }
 
 def create_argument_parser():
@@ -376,6 +379,7 @@ def main(cli_arguments=None):
     merged_output_name = output_names["merged_output_name"]
     heatmap_output_name = output_names["heatmap_output_name"]
     spectral_graph_output_name = output_names["spectral_graph_output_name"]
+    report_output_name = output_names["report_output_name"]
 
     output_csv = output_directory / f"{merged_output_name}.csv"
     heatmap_output_path = output_directory / heatmap_output_name
@@ -387,6 +391,9 @@ def main(cli_arguments=None):
 
     log_path = output_directory / "error_log.txt"
     summary_path = output_directory / "summary.json"
+    report_markdown_output = output_directory / f"{report_output_name}.md"
+    report_pdf_output = output_directory / f"{report_output_name}.pdf"
+    report_html_output = output_directory / f"{report_output_name}.html"
 
     # ---------------------------
     # 2. Selection Phase
@@ -622,6 +629,9 @@ def main(cli_arguments=None):
         "output_csv": str(output_csv),
         "heatmap_output": str(heatmap_output_path),
         "spectral_graph_output": str(spectral_graph_output_path),
+        "report_markdown_output": str(report_markdown_output),
+        "report_pdf_output": str(report_pdf_output),
+        "report_html_output": str(report_html_output),
         "log_file": str(log_path),
         "summary_file": str(summary_path)
     }
