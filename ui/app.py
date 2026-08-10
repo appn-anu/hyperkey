@@ -153,7 +153,7 @@ class HyperkeyUI:
                 ft.NavigationBarDestination(
                     icon=ft.Icons.PLAY_CIRCLE_OUTLINE,
                     selected_icon=ft.Icons.PLAY_CIRCLE,
-                    label="Run",
+                    label="Home-Run",
                 ),
                 ft.NavigationBarDestination(
                     icon=ft.Icons.TERMINAL_OUTLINED,
