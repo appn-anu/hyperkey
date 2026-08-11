@@ -196,8 +196,10 @@ pip install -r requirements.txt
 * **`Markdown`**: Parses and converts markdown text into HTML or other formats.
 * **`Playwright`**: Used to convert html into pdf.  
 * **`Chromium`**: Acts as an engine and applies all the styling to pdf.
+* **`Spyndex`**: Calculates the visual index for hyperspectral data reading. 
+* **`Flet`**: Used to build interactive, cross-platform UI applications. 
 
-and then run this command
+and once they are installed, run the following command:
 
 ```bash
 playwright install chromium 
@@ -207,7 +209,7 @@ playwright install chromium
 
 - You can check that your packages were correctly installed by running: 
 ```bash 
-python -c 'import pandas, numpy, matplotlib, markdown, playwright; print("All dependencies loaded successfully!")' 
+python -c 'import pandas, numpy, matplotlib, markdown, playwright, spyndex, flet; print("All dependencies loaded successfully!")' 
 ```
 
 
