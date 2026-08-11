@@ -289,10 +289,8 @@ def generate_pdf_report(data, project_root):
 
 # This main function takes summary.json and generates all three types of reports and 
 # saves them in the output_data directory
-def main():
+def main(dark_mode = True):
     project_root = ld.get_project_root()
-
-    dark_mode = True
 
     data = load_summary_json(project_root)
 
