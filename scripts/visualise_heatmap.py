@@ -13,7 +13,7 @@ Options:
     -i, --index       Spectral index name to compute (default: NDVI).
 """
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import argparse
 
 import load_data as ld
@@ -221,6 +221,46 @@ def load_location_mapping(location_path, measurement_names):
     return parse_location_grid(location_df, measurement_names)
 
 
+def resolve_output_path(output_value, default_directory, default_filename, extension='.png'):
+    """Resolve an output name or path into a full file path."""
+    default_directory = Path(default_directory)
+
+    if output_value is None:
+        output_path = default_directory / f"{default_filename}{extension}"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        return output_path
+
+    raw_value = str(output_value).strip().strip('"').strip("'")
+    if not raw_value:
+        raise ValueError("Output value cannot be empty.")
+
+    windows_value = PureWindowsPath(raw_value)
+    posix_value = PurePosixPath(raw_value)
+    has_directory = (
+        "/" in raw_value
+        or "\\" in raw_value
+        or bool(windows_value.drive)
+        or str(posix_value.parent) not in ("", ".")
+    )
+
+    output_path = Path(raw_value).expanduser()
+    if has_directory:
+        if output_path.suffix:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            return output_path
+        output_path = output_path.with_suffix(extension)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        return output_path
+
+    if output_path.suffix:
+        output_path = default_directory / output_path.name
+    else:
+        output_path = default_directory / f"{output_path.name}{extension}"
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path
+
+
 def parse_cli_args(argv):
     """Parse command-line arguments using argparse."""
     parser = argparse.ArgumentParser(
@@ -241,7 +281,13 @@ def parse_cli_args(argv):
         "-n",
         "--name",
         dest="output_name",
-        help="Output image name prefix.",
+        help="Output image name prefix or optional output path.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        dest="output_name",
+        help="Output image name prefix or optional output path.",
     )
     parser.add_argument(
         "-i",
@@ -433,8 +479,10 @@ def main(input_path=None, raw_location_path=None, output_name=None, index_name='
     project_root = ld.get_project_root()
     location_mapping = None
 
-    if input_path is None and raw_location_path is None and output_name is None and index_name is None:
+    if input_path is None and raw_location_path is None and output_name is None and index_name == 'NDVI':
         cli_input_path, raw_location_path, output_name, index_name = parse_cli_args(None)
+        if index_name is None:
+            index_name = 'NDVI'
 
     raw_input_path = Path(input_path) if input_path is not None else cli_input_path
     red_wavelength = 670.0
@@ -456,7 +504,7 @@ def main(input_path=None, raw_location_path=None, output_name=None, index_name='
     else:
         input_csv = project_root / 'data' / 'output_data' / 'merged_spectral_data.csv'
 
-    output_image = project_root / 'data' / 'output_data' / (output_name + '.png')
+    output_image = resolve_output_path(output_name, project_root / 'data' / 'output_data', '_heatmap_')
 
     if not input_csv.exists():
         raise FileNotFoundError(
@@ -499,6 +547,7 @@ def main(input_path=None, raw_location_path=None, output_name=None, index_name='
         print(f"Error: {e}")
         raise
     
+    # Location lookups and row/range validation
     print(f"\nCalculating {index_name}...")
     ndvi_values = calculate_spectral_index(df, index_name, red_wavelength, nir_wavelength)
     
