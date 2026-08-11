@@ -292,7 +292,7 @@ def generate_pdf_report(data, project_root):
 def main():
     project_root = ld.get_project_root()
 
-    dark_mode = False
+    dark_mode = True
 
     data = load_summary_json(project_root)
 
