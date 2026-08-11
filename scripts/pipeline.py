@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 
-# Example:
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
-# python hyperkey.py -h
 
 import argparse
 import csv
@@ -101,17 +95,20 @@ def build_output_names(custom_prefix=None):
         merged_output_name = f"{custom_prefix}_merged_spectral_data_{date_stamp}"
         heatmap_output_name = f"{custom_prefix}_heatmap_{date_stamp}"
         spectral_graph_output_name = f"{custom_prefix}_SpectralGraph_{date_stamp}"
+        report_output_name = f"{custom_prefix}_report_{date_stamp}"
         outlier_output_name = f"{custom_prefix}_outlier_analysis_{date_stamp}"
     else:
         merged_output_name = f"merged_spectral_data_{date_stamp}"
         heatmap_output_name = f"heatmap_{date_stamp}"
         spectral_graph_output_name = f"SpectralGraph_{date_stamp}"
+        report_output_name = f"report_{date_stamp}"
         outlier_output_name = f"outlier_analysis_{date_stamp}"
 
     return {
         "merged_output_name": merged_output_name,
         "heatmap_output_name": heatmap_output_name,
         "spectral_graph_output_name": spectral_graph_output_name,
+        "report_output_name": report_output_name,
         "outlier_output_name": outlier_output_name
     }
 
@@ -139,16 +136,19 @@ Output naming:
     merged_spectral_data_DDMMYYYY.csv
     heatmap_DDMMYYYY
     SpectralGraph_DDMMYYYY
+    report_DDMMYYYY.md / .html / .pdf
 
   With -o sydneyAPPN:
     sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
     sydneyAPPN_heatmap_DDMMYYYY
     sydneyAPPN_SpectralGraph_DDMMYYYY
+    sydneyAPPN_report_DDMMYYYY.md / .html / .pdf
 
   With -o "D:/Results/WheatData/sydneyAPPN":
     D:/Results/WheatData/sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
     D:/Results/WheatData/sydneyAPPN_heatmap_DDMMYYYY
     D:/Results/WheatData/sydneyAPPN_SpectralGraph_DDMMYYYY
+    D:/Results/WheatData/sydneyAPPN_report_DDMMYYYY.md / .html / .pdf
 """
     )
 
@@ -392,11 +392,15 @@ def main(cli_arguments=None):
     merged_output_name = output_names["merged_output_name"]
     heatmap_output_name = output_names["heatmap_output_name"]
     spectral_graph_output_name = output_names["spectral_graph_output_name"]
+    report_output_name = output_names["report_output_name"]
     outlier_output_name = output_names["outlier_output_name"]
 
     output_csv = output_directory / f"{merged_output_name}.csv"
     heatmap_output_path = output_directory / heatmap_output_name
     spectral_graph_output_path = output_directory / spectral_graph_output_name
+    report_markdown_output_path = output_directory / f"{report_output_name}.md"
+    report_html_output_path = output_directory / f"{report_output_name}.html"
+    report_pdf_output_path = output_directory / f"{report_output_name}.pdf"
     outlier_output_path = output_directory / outlier_output_name
 
     raw_location_path = None
@@ -640,6 +644,9 @@ def main(cli_arguments=None):
         "output_csv": str(output_csv),
         "heatmap_output": str(heatmap_output_path)+".png",
         "spectral_graph_output": str(spectral_graph_output_path)+".png",
+        "report_markdown_output": str(report_markdown_output_path),
+        "report_html_output": str(report_html_output_path),
+        "report_pdf_output": str(report_pdf_output_path),
         "outlier_output": str(outlier_output_path) if args.outlier_analysis else None,
         "log_file": str(log_path),
         "summary_file": str(summary_path)
@@ -678,6 +685,10 @@ def main(cli_arguments=None):
         "merged_output_name": merged_output_name,
         "heatmap_output_name": heatmap_output_path,
         "spectral_graph_output_name": spectral_graph_output_path,
+        "report_output_name": report_output_name,
+        "report_markdown_output": report_markdown_output_path,
+        "report_html_output": report_html_output_path,
+        "report_pdf_output": report_pdf_output_path,
         "outlier_output_name": outlier_output_path,
         "output_directory": output_directory,
         "raw_location_path": raw_location_path,
