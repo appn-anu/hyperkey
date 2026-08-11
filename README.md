@@ -200,7 +200,7 @@ pip install -r requirements.txt
 and then run this command
 
 ```bash
-playwright install 
+playwright install chromium 
 ``` 
 
 #### Verify the Installation
