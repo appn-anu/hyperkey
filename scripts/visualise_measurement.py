@@ -47,32 +47,46 @@ def plot_all_measurements(df, output_path=None, dark_mode=True):
         output_path: Optional path to save the plot
     """
     wavelengths = np.array([float(col) for col in df.columns])
-    
+    values = df.to_numpy(dtype=float)
+    mean_values = np.nanmean(values, axis=0)
+    std_values = np.nanstd(values, axis=0)
+    upper_bound = mean_values + (2 * std_values)
+    lower_bound = mean_values - (2 * std_values)
+
     if dark_mode:
-            plt.style.use('dark_background')
-    plt.figure(figsize=(12, 6))
+        plt.style.use('dark_background')
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ribbon_color = 'lightblue' if dark_mode else 'skyblue'
+    ax.fill_between(
+        wavelengths,
+        lower_bound,
+        upper_bound,
+        color=ribbon_color,
+        alpha=0.25,
+        zorder=1,
+    )
 
     for name, row in df.iterrows():
         intensities = row.values.astype(float)
-        plt.plot(wavelengths, intensities, linewidth=1, alpha=0.6, label=name)
+        ax.plot(wavelengths, intensities, linewidth=1, alpha=0.6, label=name, zorder=2)
 
-    plt.xlabel('Wavelength (nm)', fontsize=12)
-    plt.ylabel('Reflectance (%)', fontsize=12)
-    plt.title('All Spectral Measurements', fontsize=14)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    
+    ax.set_xlabel('Wavelength (nm)', fontsize=12)
+    ax.set_ylabel('Reflectance (%)', fontsize=12)
+    ax.set_title('All Spectral Measurements', fontsize=14)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
 
     # Optional: remove legend if too many lines
     if len(df) <= 20:
-        plt.legend()
+        ax.legend()
 
     if output_path is None:
         raise ValueError("Output path must be provided to save the plot as a PNG.")
 
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    fig.savefig(output_path, dpi=150, bbox_inches='tight')
     print(f"Plot saved to: {output_path}")
-    plt.close()
+    plt.close(fig)
 
 def adding_visuals_in_json(project_root, title, visual_type, image_path):
     json_path = project_root / "data" / "output_data" / "summary.json"
