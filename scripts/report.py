@@ -72,14 +72,14 @@ def generate_markdown_report(data, project_root):
     
 
     report_text = f"""
-# HyperKey Processing Report
+# Hyperkey Processing Report
 
 Generated: {data["timestamp"]}
 
 ## Processing Summary
 
 | Metric | Value |
-|---|---:|
+|---|---|
 | Total rows in metadata | {data["total_rows"]} |
 | Successfully matched files | {data["matched_files"]} |
 | Blank FileNum rows | {data["blank_filenum"]} |
@@ -111,8 +111,10 @@ This section includes:
 
 # This method uses the markdown file to generate the html file saves it in the 
 # output_data directory 
-def generate_html_report(data, report_text, project_root, dark_mode):
+def generate_html_report(data, report_text, project_root):
     html_body = markdown.markdown(report_text, extensions=["tables"])
+    dark_mode = data["dark_mode"]
+    print(dark_mode)
 
 
     if dark_mode:
@@ -220,6 +222,12 @@ def generate_html_report(data, report_text, project_root, dark_mode):
         color: #4fc3f7;
         }}
 
+        th:last-child,
+        td:last-child {{
+        text-align: right;
+        
+        }}
+
     
     </style>
 </head>
@@ -289,14 +297,14 @@ def generate_pdf_report(data, project_root):
 
 # This main function takes summary.json and generates all three types of reports and 
 # saves them in the output_data directory
-def main(dark_mode = True):
+def main(dark_mode):
     project_root = ld.get_project_root()
 
     data = load_summary_json(project_root)
 
     report_text = generate_markdown_report(data, project_root)
 
-    generate_html_report(data, report_text, project_root, dark_mode)
+    generate_html_report(data, report_text, project_root)
 
     generate_pdf_report(data, project_root)
 
