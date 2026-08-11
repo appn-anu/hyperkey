@@ -55,8 +55,8 @@ def run_pipeline(cli_arguments=None):
 
         heatmap_arguments = {
             "input_path": output_csv,
-            # "output_name": heatmap_output_name,
-            "output_name": None,
+            "output_name": heatmap_output_name,
+            # "output_name": None,
             "dark_mode": dark_mode
         }
 
@@ -74,9 +74,9 @@ def run_pipeline(cli_arguments=None):
         from visualise_measurement import main as measurement_main
         measurement_main(
             input_path=output_csv,
-            # output_name=spectral_graph_output_name,
+            output_name=spectral_graph_output_name,
             # output_name=None,
-            output_name="Spectral_graph",
+            # output_name="Spectral_graph",
             dark_mode=dark_mode
         )
         completed_stages.append("spectral_graph")
@@ -108,8 +108,8 @@ def run_pipeline(cli_arguments=None):
         from report import main as report_main
 
         # Keep the report module on the same generated-output theme setting.
-        # report_main(dark_mode=dark_mode)
-        report_main()
+        report_main(dark_mode=dark_mode)
+        # report_main()
         completed_stages.append("report")
         print("report.py completed successfully.")
 
