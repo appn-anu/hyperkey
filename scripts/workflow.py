@@ -15,6 +15,7 @@ It is shared by:
 import json
 from pathlib import Path
 
+import app_paths
 from pipeline import main as pipeline_main
 
 
@@ -57,7 +58,11 @@ def run_pipeline(cli_arguments=None):
             "input_path": output_csv,
             "output_name": heatmap_output_name,
             # "output_name": None,
-            "dark_mode": dark_mode
+            "dark_mode": dark_mode,
+            # Pass the directory the pipeline actually used, so a custom -o
+            # target keeps working for every downstream stage.
+            "output_directory": output_directory,
+            "summary_path": summary_path,
         }
 
         if raw_location_path is not None:
@@ -77,7 +82,9 @@ def run_pipeline(cli_arguments=None):
             output_name=spectral_graph_output_name,
             # output_name=None,
             # output_name="Spectral_graph",
-            dark_mode=dark_mode
+            dark_mode=dark_mode,
+            output_directory=output_directory,
+            summary_path=summary_path,
         )
         completed_stages.append("spectral_graph")
         print("visualise_measurement.py completed successfully.")
@@ -87,7 +94,13 @@ def run_pipeline(cli_arguments=None):
         # ---------------------------
         if outlier_analysis:
             print("\nRunning outlier_analysis.py ...")
-            from outlier_analysis import main as outlier_main
+            try:
+                from outlier_analysis import main as outlier_main
+            except ImportError as import_error:
+                raise RuntimeError(
+                    "Outlier analysis was requested but scripts/outlier_analysis.py "
+                    "is not present in this checkout."
+                ) from import_error
 
             # Expected outlier module contract:
             # main(input_path=None, output_name=None, dark_mode=True)
@@ -100,18 +113,6 @@ def run_pipeline(cli_arguments=None):
             print("outlier_analysis.py completed successfully.")
         else:
             print("\nOutlier analysis not requested. Skipping outlier_analysis.py.")
-
-        # ---------------------------
-        # 4. Report
-        # ---------------------------
-        print("\nRunning report.py ...")
-        from report import main as report_main
-
-        # Keep the report module on the same generated-output theme setting.
-        report_main(dark_mode=dark_mode)
-        # report_main()
-        completed_stages.append("report")
-        print("report.py completed successfully.")
 
     except Exception as error:
         print("\nPipeline stopped because a follow-up module failed.")
@@ -136,6 +137,33 @@ def run_pipeline(cli_arguments=None):
 
         raise
 
+    # ---------------------------
+    # 4. Report (non-fatal)
+    # ---------------------------
+    # The report is a presentation layer over work that is already on disk.
+    # A failure here must not discard a merged CSV and two plots that
+    # succeeded, so it is recorded rather than raised.
+    report_error = None
+
+    print("\nRunning report.py ...")
+    try:
+        from report import main as report_main
+
+        # Keep the report module on the same generated-output theme setting.
+        # PDF rendering needs Playwright/Chromium, which has no Android build.
+        report_main(
+            dark_mode=dark_mode,
+            output_directory=output_directory,
+            summary_path=summary_path,
+            emit_pdf=not app_paths.is_android(),
+        )
+        completed_stages.append("report")
+        print("report.py completed successfully.")
+
+    except Exception as error:
+        report_error = str(error)
+        print(f"Warning: report generation failed, continuing anyway. Error: {error}")
+
     # Update the summary after every requested stage has completed.
     try:
         if Path(summary_path).exists():
@@ -146,7 +174,7 @@ def run_pipeline(cli_arguments=None):
 
         summary["pipeline_completed"] = True
         summary["completed_stages"] = completed_stages
-        summary["pipeline_error"] = None
+        summary["pipeline_error"] = report_error
 
         with Path(summary_path).open("w", encoding="utf-8") as f:
             json.dump(summary, f, indent=4)
@@ -155,6 +183,9 @@ def run_pipeline(cli_arguments=None):
 
     result["pipeline_completed"] = True
     result["completed_stages"] = completed_stages
+
+    if report_error is not None:
+        result["pipeline_error"] = report_error
 
     print("\nFULL PIPELINE COMPLETED!")
     print(f"Output directory: {output_directory}")

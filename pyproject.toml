@@ -1,0 +1,83 @@
+[project]
+name = "hyperkey"
+version = "0.1.0"
+description = "Hyperspectral field-data pipeline and viewer"
+requires-python = ">=3.12"
+
+# These are the dependencies flet build installs into the app bundle.
+# Versions are the newest available as Android wheels on https://pypi.flet.dev
+# (which flet build adds as an extra index automatically). Exact == pins from
+# requirements.txt do not all exist there, so ranges are used deliberately.
+#
+# playwright is intentionally absent: it ships a Node.js driver and needs a
+# separate Chromium binary, neither of which has an Android build. It stays in
+# requirements.txt for desktop, where report.py imports it lazily.
+dependencies = [
+    "flet==0.86.5",
+    "flet-permission-handler==0.86.5",
+    "numpy>=2.4,<2.5",
+    "pandas>=3.0,<3.1",
+    "matplotlib>=3.10,<3.11",
+    "pillow>=12.2",
+    "spyndex==0.12.0",
+    "requests",         # transitive via spyndex
+    "python-box>=6.0",  # transitive via spyndex
+    "Markdown==3.10.3",
+]
+
+[tool.flet]
+org = "au.edu.anu"
+product = "Hyperkey"
+company = "ANU"
+
+# flet build picks up assets/icon.png automatically as the launcher icon, and
+# reuses it for the splash screen when no splash image is supplied. The artwork
+# is dark-outlined pixel art, so the splash stays light in both modes rather
+# than losing its outlines against a dark background.
+[tool.flet.splash]
+color = "#FFFFFF"
+dark_color = "#FFFFFF"
+
+[tool.flet.app]
+# hyperkey.py is the public entrypoint; it launches the Flet UI when given no
+# command-line arguments, and always on Android.
+module = "hyperkey"
+exclude = [
+    ".venv",
+    ".git",
+    ".vscode",
+    "plans",
+    "build",
+    "**/__pycache__",
+    "data/output_data",
+    # On-device test captures. Useful in the repo, dead weight in the APK.
+    "screenshots",
+]
+
+[tool.flet.android]
+# Android 16. An app targeting 36 runs correctly on Android 17; raise this only
+# if the bundled Android Gradle Plugin accepts a higher level.
+target_sdk_version = 36
+min_sdk_version = 24
+
+# Pure Python ships as a zip that is imported in place, which breaks packages
+# reading bundled data through a real filesystem path. matplotlib resolves
+# mpl-data via Path(__file__).with_name("mpl-data"), so it must land on disk.
+# spyndex does NOT need this - it uses importlib.resources, which is zip-safe.
+extract_packages = ["matplotlib"]
+
+# On Android assets/icon.png becomes the adaptive icon's foreground layer, and
+# launchers crop that to a circle 66% of the canvas wide. assets/icon.png is
+# therefore hyperkey-logo-full.png scaled to sit inside that circle with a
+# margin, over this background colour. White keeps the black pixel outlines
+# legible on light and dark launchers alike.
+adaptive_icon_background = "#FFFFFF"
+
+[tool.flet.android.permission]
+# Reading a user-chosen folder of .sig files needs all-files access. The
+# scoped-storage alternatives only cover media, not arbitrary instrument data.
+"android.permission.MANAGE_EXTERNAL_STORAGE" = true
+"android.permission.READ_EXTERNAL_STORAGE" = { maxSdkVersion = "32" }
+"android.permission.WRITE_EXTERNAL_STORAGE" = { maxSdkVersion = "29" }
+
+# Are you really still here?

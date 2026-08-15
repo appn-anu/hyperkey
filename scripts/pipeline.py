@@ -10,13 +10,30 @@
 import argparse
 import csv
 import json
+import sys
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
+
+import app_paths
 
 
 # ---------------------------
 # Helpers and Formatting
 # ---------------------------
+
+def is_interactive():
+    """
+    Return True when there is a terminal to prompt on.
+
+    The Flet UI runs this module on a worker thread with no stdin, and the
+    Android runtime has no stdin at all - so input() there would raise
+    EOFError or hang. Callers use this to fail with a useful message instead.
+    """
+    try:
+        return sys.stdin is not None and sys.stdin.isatty()
+    except (AttributeError, ValueError):
+        return False
+
 
 def get_log_timestamp():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -236,6 +253,12 @@ Output naming:
 
 
 def select_from_list(items, prompt_label):
+    if not is_interactive():
+        raise ValueError(
+            f"{prompt_label} was not supplied and cannot be prompted for here. "
+            f"Pass it explicitly (metadata files as arguments, root folder with -r)."
+        )
+
     print(f"\n--- Select {prompt_label} ---")
     print("[0] ENTER MANUALLY / TYPE PATH")
 
@@ -374,8 +397,9 @@ def main(cli_arguments=None):
     script_dir = Path(__file__).resolve().parent
     project_root = script_dir.parent
 
-
-    default_dir = project_root / "data" / "output_data"
+    # On Android the app payload is read-only, so this resolves to the app's
+    # private storage instead of <root>/data/output_data.
+    default_dir = app_paths.default_output_directory()
 
     try:
         output_target = parse_output_target(args.output, default_dir)
@@ -507,13 +531,24 @@ def main(cli_arguments=None):
     fixed_prefix = "HR"
 
     if not has_prefix:
-        user_prefix = input("Prefix column missing. Enter default prefix [Press Enter for 'HR']: ").strip()
-        fixed_prefix = user_prefix if user_prefix else "HR"
+        if is_interactive():
+            user_prefix = input("Prefix column missing. Enter default prefix [Press Enter for 'HR']: ").strip()
+            fixed_prefix = user_prefix if user_prefix else "HR"
+        else:
+            # No terminal to prompt on. 'HR' is the SVC instrument default and
+            # matches every sample dataset, so it is a safe assumption.
+            print("Prefix column missing. Using default prefix 'HR'.")
 
     fixed_date = ""
 
     if not has_date:
-        fixed_date = input("Date column missing. Enter fixed Date: ").strip()
+        if is_interactive():
+            fixed_date = input("Date column missing. Enter fixed Date: ").strip()
+        else:
+            raise ValueError(
+                "The metadata CSV has no 'Date' column and there is no terminal "
+                "to prompt on. Add a 'Date' column (MMDDYY) to the metadata file."
+            )
 
     processed_count = 0
     skipped_blank = 0

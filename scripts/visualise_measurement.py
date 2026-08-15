@@ -11,6 +11,12 @@ Args:
 import argparse
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+import app_paths
+
+# Must run before pyplot is imported: selects the Agg backend and points
+# matplotlib's config/font cache somewhere writable on Android.
+app_paths.configure_matplotlib()
+
 import load_data as ld
 import numpy as np
 import matplotlib.pyplot as plt
@@ -134,8 +140,13 @@ def plot_all_measurements(df, output_path=None, dark_mode=True):
     print(f"Plot saved to: {output_path}")
     plt.close(fig)
 
-def adding_visuals_in_json(project_root, title, visual_type, image_path):
-    json_path = project_root / "data" / "output_data" / "summary.json"
+def adding_visuals_in_json(summary_path, title, visual_type, image_path):
+    """Append a visualisation entry to the summary.json the pipeline wrote."""
+    json_path = (
+        Path(summary_path)
+        if summary_path is not None
+        else app_paths.default_output_directory() / "summary.json"
+    )
     if not json_path.exists():
         raise FileNotFoundError(f"summary.json not found at {json_path}")
 
@@ -156,8 +167,23 @@ def adding_visuals_in_json(project_root, title, visual_type, image_path):
         json.dump(summary, f, indent=4)
 
 
-def main(input_path=None, output_name=None, dark_mode=True):
+def main(
+    input_path=None,
+    output_name=None,
+    dark_mode=True,
+    output_directory=None,
+    summary_path=None,
+):
     project_root = ld.get_project_root()
+
+    output_dir = (
+        Path(output_directory)
+        if output_directory is not None
+        else app_paths.default_output_directory()
+    )
+
+    if summary_path is None:
+        summary_path = output_dir / "summary.json"
 
     if input_path is None and output_name is None:
         cli_input_path, cli_output_name = parse_cli_args(None)
@@ -176,7 +202,13 @@ def main(input_path=None, output_name=None, dark_mode=True):
             candidate_paths.append(project_root.joinpath(*input_csv.parts[1:]))
         input_csv = next((p for p in candidate_paths if p.exists()), input_csv)
     else:
-        input_csv = project_root / 'data' / 'output_data' / 'merged_spectral_data.csv'
+        # The pipeline always date-stamps the merged CSV, so fall back to the
+        # most recent one in the output directory rather than a fixed name.
+        candidates = sorted(
+            output_dir.glob("*merged_spectral_data_*.csv"),
+            key=lambda p: p.stat().st_mtime,
+        )
+        input_csv = candidates[-1] if candidates else output_dir / "merged_spectral_data.csv"
 
     if not input_csv.exists():
         raise FileNotFoundError(
@@ -188,10 +220,10 @@ def main(input_path=None, output_name=None, dark_mode=True):
     df = ld.load_spectral_data(input_csv)
     print(f"Loaded {len(df)} measurements with {len(df.columns)} wavelength points")
 
-    output_image = resolve_output_path(output_name, project_root / 'data' / 'output_data', '_hyperspectral_')
+    output_image = resolve_output_path(output_name, output_dir, '_hyperspectral_')
     plot_all_measurements(df, output_image, dark_mode)
 
-    adding_visuals_in_json(project_root, "Hyperspectral Data", "spectral", output_image)
+    adding_visuals_in_json(summary_path, "Hyperspectral Data", "spectral", output_image)
 
 
 if __name__ == "__main__":

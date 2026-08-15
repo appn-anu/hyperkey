@@ -1,16 +1,25 @@
 import json
 from pathlib import Path
 import markdown
-import load_data as ld
+import app_paths
 from datetime import datetime
-from playwright.sync_api import sync_playwright
+
+# Playwright is imported lazily inside generate_pdf_report(). It is a
+# desktop-only dependency (it ships a Node.js driver and needs a separate
+# Chromium binary), and importing it at module scope would make this whole
+# module unimportable on Android.
 
 # This method loads the summary.json file that has success matrix and visual data path
 # report_ddmmyyyy for without custom_output_name
 # -o customOutputName_report_ddmmyyyy with custom_output_name
 
-def load_summary_json(project_root):
-    json_path = project_root / "data" / "output_data" / "summary.json"
+def load_summary_json(summary_path=None):
+    """Load summary.json from the directory the pipeline actually wrote it to."""
+    json_path = (
+        Path(summary_path)
+        if summary_path is not None
+        else app_paths.default_output_directory() / "summary.json"
+    )
 
     with open(json_path, "r", encoding="utf-8") as file:
         return json.load(file)
@@ -56,7 +65,7 @@ def get_report_filename(data, extension):
 
 # This method generates the markdown file from the data available from json file and saves it in the 
 # output_data directory
-def generate_markdown_report(data, project_root):
+def generate_markdown_report(data, output_dir):
     visual_section = build_image_section(
         data,
         "visualisations",
@@ -100,7 +109,7 @@ This section includes:
 {spectral_graph}
 """
 
-    report_path = project_root / "data" / "output_data" / get_report_filename(data, "md")
+    report_path = Path(output_dir) / get_report_filename(data, "md")
 
     with open(report_path, "w", encoding="utf-8") as file:
         file.write(report_text)
@@ -111,7 +120,7 @@ This section includes:
 
 # This method uses the markdown file to generate the html file saves it in the 
 # output_data directory 
-def generate_html_report(data, report_text, project_root):
+def generate_html_report(data, report_text, output_dir):
     html_body = markdown.markdown(report_text, extensions=["tables"])
     dark_mode = data["dark_mode"]
     print(dark_mode)
@@ -237,7 +246,7 @@ def generate_html_report(data, report_text, project_root):
 </html>
 """
 
-    html_path = project_root / "data" / "output_data" / get_report_filename(data, "html")
+    html_path = Path(output_dir) / get_report_filename(data, "html")
 
     with open(html_path, "w", encoding="utf-8") as file:
         file.write(html_text)
@@ -262,8 +271,20 @@ def resolve_image_path(image_path_value, project_root, output_dir):
     return possible_output_path
 
 
-def generate_pdf_report(data, project_root):
-    output_dir = project_root / "data" / "output_data"
+def generate_pdf_report(data, output_dir):
+    """
+    Render the HTML report to PDF via headless Chromium.
+
+    Returns the PDF path, or None when Playwright is unavailable. Playwright
+    has no Android build, so on mobile this stage is skipped rather than fatal.
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("Playwright is not available on this platform - skipping PDF report.")
+        return None
+
+    output_dir = Path(output_dir)
 
     html_path = output_dir / get_report_filename(data, "html")
     pdf_path = output_dir / get_report_filename(data, "pdf")
@@ -273,8 +294,10 @@ def generate_pdf_report(data, project_root):
 
         page = browser.new_page()
 
+        # as_uri() produces a correct file:// URI on every platform.
+        # An f-string of "file:///" + a POSIX absolute path yields four slashes.
         page.goto(
-            f"file:///{html_path}",
+            html_path.resolve().as_uri(),
             wait_until="networkidle"
         )
 
@@ -295,18 +318,36 @@ def generate_pdf_report(data, project_root):
 
     print(f"PDF report saved to: {pdf_path}")
 
-# This main function takes summary.json and generates all three types of reports and 
+    return pdf_path
+
+# This main function takes summary.json and generates all three types of reports and
 # saves them in the output_data directory
-def main(dark_mode):
-    project_root = ld.get_project_root()
+def main(dark_mode=True, output_directory=None, summary_path=None, emit_pdf=True):
+    """
+    Generate the Markdown, HTML and (optionally) PDF reports.
 
-    data = load_summary_json(project_root)
+    output_directory and summary_path default to the standard output location
+    so the module still works when run directly from the command line.
+    """
+    output_dir = (
+        Path(output_directory)
+        if output_directory is not None
+        else app_paths.default_output_directory()
+    )
 
-    report_text = generate_markdown_report(data, project_root)
+    if summary_path is None:
+        summary_path = output_dir / "summary.json"
 
-    generate_html_report(data, report_text, project_root)
+    data = load_summary_json(summary_path)
 
-    generate_pdf_report(data, project_root)
+    report_text = generate_markdown_report(data, output_dir)
+
+    generate_html_report(data, report_text, output_dir)
+
+    if emit_pdf:
+        generate_pdf_report(data, output_dir)
+    else:
+        print("PDF report disabled for this platform - skipping.")
 
 
 if __name__ == "__main__":

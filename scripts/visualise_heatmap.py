@@ -16,6 +16,12 @@ Options:
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import argparse
 
+import app_paths
+
+# Must run before pyplot is imported: selects the Agg backend and points
+# matplotlib's config/font cache somewhere writable on Android.
+app_paths.configure_matplotlib()
+
 import load_data as ld
 import numpy as np
 import pandas as pd
@@ -441,19 +447,26 @@ def create_heatmap(visual_type, visual_values, measurement_names, output_path=No
     
     plt.tight_layout()
     
-    # Save or show
-    if output_path:
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        print(f"Heatmap saved to: {output_path}")
-    else:
-        plt.show()
-    
+    # Always save. Rendering is headless (Agg), and this runs on a GUI worker
+    # thread, so an interactive plt.show() window is never appropriate here.
+    if not output_path:
+        plt.close()
+        raise ValueError("Output path must be provided to save the heatmap as a PNG.")
+
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    print(f"Heatmap saved to: {output_path}")
+
     plt.close()
     
     return grid
 
-def adding_visuals_in_json(project_root, title, visual_type, image_path):
-    json_path = project_root / "data" / "output_data" / "summary.json"
+def adding_visuals_in_json(summary_path, title, visual_type, image_path):
+    """Append a visualisation entry to the summary.json the pipeline wrote."""
+    json_path = (
+        Path(summary_path)
+        if summary_path is not None
+        else app_paths.default_output_directory() / "summary.json"
+    )
     if not json_path.exists():
         raise FileNotFoundError(f"summary.json not found at {json_path}")
     
@@ -474,10 +487,27 @@ def adding_visuals_in_json(project_root, title, visual_type, image_path):
         json.dump(summary, f, indent=4)
 
 
-def main(input_path=None, raw_location_path=None, output_name=None, index_name='NDVI', dark_mode=True):
+def main(
+    input_path=None,
+    raw_location_path=None,
+    output_name=None,
+    index_name='NDVI',
+    dark_mode=True,
+    output_directory=None,
+    summary_path=None,
+):
     # Get project root and use relative paths
     project_root = ld.get_project_root()
     location_mapping = None
+
+    output_dir = (
+        Path(output_directory)
+        if output_directory is not None
+        else app_paths.default_output_directory()
+    )
+
+    if summary_path is None:
+        summary_path = output_dir / "summary.json"
 
     if input_path is None and raw_location_path is None and output_name is None and index_name == 'NDVI':
         cli_input_path, raw_location_path, output_name, index_name = parse_cli_args(None)
@@ -502,9 +532,15 @@ def main(input_path=None, raw_location_path=None, output_name=None, index_name='
                 candidate_paths.append(project_root.joinpath(*input_csv.parts[1:]))
             input_csv = next((p for p in candidate_paths if p.exists()), input_csv)
     else:
-        input_csv = project_root / 'data' / 'output_data' / 'merged_spectral_data.csv'
+        # The pipeline always date-stamps the merged CSV, so fall back to the
+        # most recent one in the output directory rather than a fixed name.
+        candidates = sorted(
+            output_dir.glob("*merged_spectral_data_*.csv"),
+            key=lambda p: p.stat().st_mtime,
+        )
+        input_csv = candidates[-1] if candidates else output_dir / "merged_spectral_data.csv"
 
-    output_image = resolve_output_path(output_name, project_root / 'data' / 'output_data', '_heatmap_')
+    output_image = resolve_output_path(output_name, output_dir, '_heatmap_')
 
     if not input_csv.exists():
         raise FileNotFoundError(
@@ -582,7 +618,7 @@ def main(input_path=None, raw_location_path=None, output_name=None, index_name='
         dark_mode=dark_mode,
     )
 
-    adding_visuals_in_json(project_root, f"{index_name} Heatmap", "heatmap", output_image)
+    adding_visuals_in_json(summary_path, f"{index_name} Heatmap", "heatmap", output_image)
     
     print("\nDone!")
 

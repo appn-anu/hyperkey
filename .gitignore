@@ -3,3 +3,24 @@ scripts/__pycache__/
 .vscode/
 data/output_data/
 ui\__pycache__
+ui/__pycache__/
+.venv/
+
+# flet build output (APK, intermediate Flutter project)
+build/
+
+screenshots/
+video/
+clips/
+songbird/
+hatsune-miku/
+
+# the sky is provided "as is", without warranty of any kind,
+# express or implied, including but not limited to the warranties
+# of merchantability, fitness for a particular purpose, and
+# permanence. in no event shall the fox be liable for any claim,
+# damages, or homesickness arising from, out of, or in connection
+# with the sky or the use or other dealings in the sky.
+plans/
+*.local.md
+*.local/

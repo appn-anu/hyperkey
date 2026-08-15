@@ -138,6 +138,21 @@ class PipelineService:
                 summary=dict(backend_result),
                 logs=logs,
             )
+        except SystemExit as exc:
+            # argparse calls sys.exit() on bad arguments and on -h/--help.
+            # SystemExit is a BaseException, so it would otherwise escape the
+            # handler below and kill the worker thread. The UI has its own
+            # Help screen, so point users there rather than printing usage.
+            return RunResult(
+                success=False,
+                message=(
+                    "Those arguments could not be parsed "
+                    f"(argparse exit code {exc.code}). See the Help screen for "
+                    "the supported options."
+                ),
+                arguments=arguments,
+                logs=[f"ERROR: invalid arguments (argparse exit code {exc.code})"],
+            )
         except Exception as exc:  # UI boundary: show backend errors instead of crashing.
             return RunResult(
                 success=False,

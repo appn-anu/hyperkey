@@ -12,16 +12,12 @@ def project_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def _import_workflow_module():
+def ensure_scripts_on_path() -> None:
     """
-    Import scripts/workflow.py without requiring scripts/ to be a Python package.
+    Put scripts/ on sys.path without requiring it to be a Python package.
 
-    Adding scripts/ to sys.path also allows workflow.py to import:
-        pipeline.py
-        visualise_heatmap.py
-        visualise_measurement.py
-        outlier_analysis.py
-        report.py
+    This is what allows the pipeline modules to keep importing each other
+    flatly (`from pipeline import main`, `import app_paths`, ...).
     """
     scripts_dir = project_root() / "scripts"
 
@@ -35,6 +31,32 @@ def _import_workflow_module():
 
     if scripts_text not in sys.path:
         sys.path.insert(0, scripts_text)
+
+
+def import_app_paths():
+    """
+    Return the shared scripts/app_paths module.
+
+    The UI needs the same platform-aware paths the pipeline uses, so both
+    sides agree on where output goes.
+    """
+    ensure_scripts_on_path()
+
+    return importlib.import_module("app_paths")
+
+
+def _import_workflow_module():
+    """
+    Import scripts/workflow.py without requiring scripts/ to be a Python package.
+
+    Adding scripts/ to sys.path also allows workflow.py to import:
+        pipeline.py
+        visualise_heatmap.py
+        visualise_measurement.py
+        outlier_analysis.py
+        report.py
+    """
+    ensure_scripts_on_path()
 
     return importlib.import_module("workflow")
 

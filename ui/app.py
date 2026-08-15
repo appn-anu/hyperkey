@@ -9,18 +9,41 @@ from uuid import uuid4
 
 import flet as ft
 
+from .backend import import_app_paths
 from .components import browse_field, help_item, section_card, stat_card
 from .models import HyperkeyRunConfig, RunResult
 from .pipeline_service import PipelineService
 
+# Shared with the pipeline, so the UI and the backend agree on where output
+# goes and on whether this is an Android build.
+app_paths = import_app_paths()
+
+# flet_permission_handler is only needed on Android, and is not installed in
+# every desktop environment. Import it defensively so desktop never breaks.
+try:
+    import flet_permission_handler as fph
+except ImportError:
+    fph = None
+
 
 class HyperkeyUI:
+    # The theme button cycles through these in order. SYSTEM is first, and so
+    # is the startup state: the app follows the phone's own light/dark setting
+    # unless the user deliberately pins it. Keeping an explicit Light and Dark
+    # in the cycle means "follow system" is a choice rather than a trap.
+    THEME_CYCLE = (
+        (ft.ThemeMode.SYSTEM, ft.Icons.BRIGHTNESS_AUTO, "App theme: follow system"),
+        (ft.ThemeMode.LIGHT, ft.Icons.LIGHT_MODE_OUTLINED, "App theme: light"),
+        (ft.ThemeMode.DARK, ft.Icons.DARK_MODE_OUTLINED, "App theme: dark"),
+    )
+
     def __init__(self, page: ft.Page, service: PipelineService | None = None):
         self.page = page
         self.service = service or PipelineService()
         self.current_screen = 0
         self.last_result: RunResult | None = None
         self._mounted = False
+        self._theme_index = 0
 
         self._configure_page()
         self._create_controls()
@@ -31,7 +54,7 @@ class HyperkeyUI:
     # ------------------------------------------------------------------
     def _configure_page(self) -> None:
         self.page.title = "Hyperkey"
-        self.page.theme_mode = ft.ThemeMode.LIGHT
+        self.page.theme_mode = self.THEME_CYCLE[0][0]
         self.page.padding = 0
 
         # Keep the visual language simple and close to Material defaults so the
@@ -70,14 +93,23 @@ class HyperkeyUI:
             on_change=self._refresh_command_preview,
         )
 
+        if app_paths.is_android():
+            # Android app storage is private and its path is not something a
+            # user could reasonably type, so prefill it.
+            self.output_directory_field.value = str(app_paths.default_output_directory())
+
         self.dark_mode_switch = ft.Switch(
             label="Dark visualisations",
             value=True,
             on_change=self._refresh_command_preview,
         )
+        # The outlier-analysis toggle is hidden until scripts/outlier_analysis.py
+        # lands. The switch object is kept so _config_from_form() and the CLI
+        # preview keep working unchanged; it is simply never shown.
         self.outlier_switch = ft.Switch(
             label="Outlier analysis",
             value=False,
+            visible=False,
             on_change=self._refresh_command_preview,
         )
 
@@ -124,6 +156,13 @@ class HyperkeyUI:
         self.output_status = ft.Text()
         self.url_launcher = ft.UrlLauncher()
 
+        # Android cannot open file:// URIs (FileUriExposedException), so
+        # generated files are handed to the system share sheet instead.
+        self.share = ft.Share()
+        self.permissions = (
+            fph.PermissionHandler() if (fph is not None and app_paths.is_android()) else None
+        )
+
         self.logs_field = ft.TextField(
             label="Run log",
             multiline=True,
@@ -135,9 +174,10 @@ class HyperkeyUI:
 
         self.content_host = ft.Container(expand=True)
 
+        _, theme_icon, theme_tooltip = self.THEME_CYCLE[self._theme_index]
         self.theme_button = ft.IconButton(
-            icon=ft.Icons.DARK_MODE_OUTLINED,
-            tooltip="Toggle app theme",
+            icon=theme_icon,
+            tooltip=theme_tooltip,
             on_click=self._toggle_app_theme,
         )
         self.help_button = ft.IconButton(
@@ -288,13 +328,67 @@ class HyperkeyUI:
         self.location_field.value = await self._portable_file_path(files[0])
         self._refresh_command_preview(None)
 
+    async def _ensure_storage_permission(self) -> bool:
+        """
+        Make sure we can read arbitrary folders before opening a directory picker.
+
+        Only relevant on Android. Reading a user-chosen folder full of .sig
+        files needs all-files access; Android routes that through Settings
+        rather than a normal permission dialog, so the user needs telling.
+        Returns True when browsing can proceed.
+        """
+        if not app_paths.is_android() or self.permissions is None:
+            return True
+
+        permission = fph.Permission.MANAGE_EXTERNAL_STORAGE
+
+        status = await self.permissions.get_status(permission)
+
+        if status != fph.PermissionStatus.GRANTED:
+            status = await self.permissions.request(permission)
+
+        if status == fph.PermissionStatus.GRANTED:
+            return True
+
+        async def open_settings(_e) -> None:
+            self.page.pop_dialog()
+            await self.permissions.open_app_settings()
+
+        def dismiss(_e) -> None:
+            self.page.pop_dialog()
+
+        self.page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Storage access needed"),
+                content=ft.Text(
+                    "Hyperkey needs all-files access to read a folder of .sig "
+                    "measurements.\n\n"
+                    "Grant it under Settings > Apps > Hyperkey > "
+                    "Special app access > All files access."
+                ),
+                actions=[
+                    ft.TextButton(content="Not now", on_click=dismiss),
+                    ft.TextButton(content="Open settings", on_click=open_settings),
+                ],
+            )
+        )
+
+        return False
+
     async def _pick_root_folder(self, _e) -> None:
+        if not await self._ensure_storage_permission():
+            return
+
         path = await ft.FilePicker().get_directory_path(dialog_title="Select raw spectral-data folder")
         if path:
             self.root_field.value = path
             self._refresh_command_preview(None)
 
     async def _pick_output_folder(self, _e) -> None:
+        if not await self._ensure_storage_permission():
+            return
+
         path = await ft.FilePicker().get_directory_path(dialog_title="Select output folder")
         if path:
             self.output_directory_field.value = path
@@ -386,7 +480,7 @@ class HyperkeyUI:
                             self.cli_field,
                             ft.Text(
                                 "Example: metadata.csv -r raw_data -o sydneyAPPN "
-                                "-l species_locations.csv --outlier-analysis",
+                                "-l species_locations.csv",
                                 theme_style=ft.TextThemeStyle.BODY_SMALL,
                             ),
                         ],
@@ -524,18 +618,28 @@ class HyperkeyUI:
 
     async def _open_output_path(self, path: Path) -> None:
         """
-        Open an output using the operating system while keeping Hyperkey open.
+        Hand an output file to the operating system, keeping Hyperkey open.
 
-        Desktop opens the file in its associated application. On Android the
-        platform launcher chooses the associated viewer when available.
+        Desktop opens the file in its associated application. Android blocks
+        file:// URIs (FileUriExposedException), so there the file goes to the
+        system share sheet, which also covers "save to Drive/Files".
         """
         try:
             resolved = path.resolve()
-            await self.url_launcher.launch_url(
-                resolved.as_uri(),
-                mode=ft.LaunchMode.EXTERNAL_APPLICATION,
-            )
-            self.output_status.value = f"Opened: {resolved.name}"
+
+            if app_paths.is_android():
+                await self.share.share_files(
+                    [ft.ShareFile.from_path(str(resolved))],
+                    subject=resolved.name,
+                )
+                self.output_status.value = f"Shared: {resolved.name}"
+            else:
+                await self.url_launcher.launch_url(
+                    resolved.as_uri(),
+                    mode=ft.LaunchMode.EXTERNAL_APPLICATION,
+                )
+                self.output_status.value = f"Opened: {resolved.name}"
+
         except Exception as exc:
             self.output_status.value = (
                 f"Unable to open '{path.name}' automatically: {exc}"
@@ -543,9 +647,134 @@ class HyperkeyUI:
 
         self.page.update()
 
+    def _show_fullscreen_image(self, image_bytes: bytes, caption: str = "") -> None:
+        """
+        Open a generated plot full screen, with pinch-zoom and pan.
+
+        Zooming a plot where it sits in the report does not work: an
+        InteractiveViewer inside a scrolling Column competes with the page for
+        the same drag gestures, so a pan reads as a scroll about as often as it
+        reads as a pan. Giving the image its own screen removes the conflict
+        entirely, and as a dialog it also gets Android's back button for free.
+        """
+        # page.width / page.height are None until the first frame is measured.
+        width = self.page.width or 400
+        height = self.page.height or 700
+
+        viewer = ft.InteractiveViewer(
+            width=width,
+            height=height,
+            min_scale=1.0,
+            max_scale=10.0,
+            content=ft.Image(src=image_bytes, fit=ft.BoxFit.CONTAIN),
+        )
+
+        def close(_e) -> None:
+            self.page.pop_dialog()
+
+        async def reset_zoom(_e) -> None:
+            # InteractiveViewer.reset() is a command sent to the Flutter side,
+            # so it has to be awaited rather than fired and forgotten.
+            await viewer.reset(animation_duration=200)
+
+        overlay_button_bgcolor = ft.Colors.with_opacity(0.45, ft.Colors.BLACK)
+
+        layers: list[ft.Control] = [
+            viewer,
+            ft.Container(
+                top=8,
+                right=8,
+                content=ft.Row(
+                    tight=True,
+                    spacing=4,
+                    controls=[
+                        ft.IconButton(
+                            icon=ft.Icons.RESTART_ALT,
+                            icon_color=ft.Colors.WHITE,
+                            bgcolor=overlay_button_bgcolor,
+                            tooltip="Reset zoom",
+                            on_click=reset_zoom,
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.CLOSE,
+                            icon_color=ft.Colors.WHITE,
+                            bgcolor=overlay_button_bgcolor,
+                            tooltip="Close",
+                            on_click=close,
+                        ),
+                    ],
+                ),
+            ),
+        ]
+
+        if caption:
+            layers.append(
+                ft.Container(
+                    bottom=0,
+                    left=0,
+                    right=0,
+                    padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+                    bgcolor=ft.Colors.with_opacity(0.55, ft.Colors.BLACK),
+                    content=ft.Text(
+                        caption,
+                        color=ft.Colors.WHITE,
+                        size=12,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                )
+            )
+
+        self.page.show_dialog(
+            ft.AlertDialog(
+                # A borderless, edge-to-edge dialog on a black ground: the plots
+                # are the whole point of the screen while this is open.
+                bgcolor=ft.Colors.BLACK,
+                barrier_color=ft.Colors.BLACK,
+                inset_padding=ft.Padding.all(0),
+                content_padding=ft.Padding.all(0),
+                shape=ft.RoundedRectangleBorder(radius=0),
+                content=ft.Stack(width=width, height=height, controls=layers),
+            )
+        )
+
+    async def _export_output_path(self, path: Path) -> None:
+        """
+        Save an output file somewhere the user chooses.
+
+        On Android this opens the Storage Access Framework dialog, which is
+        the reliable way to get a merged CSV off the phone (Downloads, Drive,
+        or anywhere else). save_file() requires the bytes up front on mobile.
+        """
+        try:
+            saved = await ft.FilePicker().save_file(
+                dialog_title=f"Save {path.name}",
+                file_name=path.name,
+                src_bytes=path.read_bytes(),
+            )
+            self.output_status.value = (
+                f"Saved: {saved}" if saved else "Save cancelled."
+            )
+
+        except Exception as exc:
+            self.output_status.value = f"Unable to save '{path.name}': {exc}"
+
+        self.page.update()
+
     def _output_file_card(self, label: str, path: Path) -> ft.Card:
         async def open_file(_e) -> None:
             await self._open_output_path(path)
+
+        async def save_file(_e) -> None:
+            await self._export_output_path(path)
+
+        is_image = path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+
+        def view_image(_e) -> None:
+            try:
+                self._show_fullscreen_image(path.read_bytes(), label)
+            except Exception as exc:
+                self.output_status.value = f"Unable to view '{path.name}': {exc}"
+                self.page.update()
 
         size_text = ""
         try:
@@ -563,12 +792,44 @@ class HyperkeyUI:
         if size_text:
             subtitle += f"\n{size_text}"
 
+        actions: list[ft.Control] = []
+
+        if is_image:
+            # Viewing a plot in-app should not require a detour through the
+            # report, or through whatever gallery app the share sheet offers.
+            actions.append(
+                ft.IconButton(
+                    icon=ft.Icons.ZOOM_IN,
+                    tooltip="View full screen",
+                    on_click=view_image,
+                )
+            )
+
+        actions.extend(
+            [
+                # Saving elsewhere matters most on Android, where app storage
+                # is private and files need exporting to leave.
+                ft.IconButton(
+                    icon=ft.Icons.SAVE_ALT,
+                    tooltip="Save a copy",
+                    on_click=save_file,
+                ),
+                ft.Icon(
+                    ft.Icons.SHARE if app_paths.is_android() else ft.Icons.OPEN_IN_NEW
+                ),
+            ]
+        )
+
         return ft.Card(
             content=ft.ListTile(
-                leading=ft.Icon(ft.Icons.INSERT_DRIVE_FILE_OUTLINED),
+                leading=ft.Icon(
+                    ft.Icons.IMAGE_OUTLINED
+                    if is_image
+                    else ft.Icons.INSERT_DRIVE_FILE_OUTLINED
+                ),
                 title=ft.Text(label, weight=ft.FontWeight.W_600),
                 subtitle=ft.Text(subtitle, max_lines=3),
-                trailing=ft.Icon(ft.Icons.OPEN_IN_NEW),
+                trailing=ft.Row(tight=True, controls=actions),
                 on_click=open_file,
             )
         )
@@ -690,6 +951,9 @@ class HyperkeyUI:
             try:
                 image_bytes = image_path.read_bytes()
 
+                def open_fullscreen(_e, data=image_bytes, label=alt_text) -> None:
+                    self._show_fullscreen_image(data, label or image_path.name)
+
                 controls.append(
                     ft.Container(
                         padding=ft.Padding.only(top=6, bottom=14),
@@ -697,9 +961,34 @@ class HyperkeyUI:
                             spacing=6,
                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                             controls=[
-                                ft.Image(
-                                    src=image_bytes,
-                                    fit=ft.BoxFit.CONTAIN,
+                                # Plots are rendered at dpi=150 and are far
+                                # wider than a phone screen, so the inline copy
+                                # is only a preview. Tapping it opens the image
+                                # full screen, where pinch-zoom has the display
+                                # to itself instead of fighting the page scroll.
+                                ft.Container(
+                                    height=360,
+                                    ink=True,
+                                    border_radius=8,
+                                    alignment=ft.Alignment.CENTER,
+                                    tooltip="Tap to view full screen",
+                                    on_click=open_fullscreen,
+                                    content=ft.Image(
+                                        src=image_bytes,
+                                        fit=ft.BoxFit.CONTAIN,
+                                    ),
+                                ),
+                                ft.Row(
+                                    tight=True,
+                                    spacing=4,
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                    controls=[
+                                        ft.Icon(ft.Icons.ZOOM_IN, size=14),
+                                        ft.Text(
+                                            "Tap to view full screen",
+                                            theme_style=ft.TextThemeStyle.BODY_SMALL,
+                                        ),
+                                    ],
                                 ),
                                 ft.Text(
                                     alt_text,
@@ -910,7 +1199,6 @@ class HyperkeyUI:
                     ],
                 )
             )
-        print(controls := self.outputs_content.controls)
         report_path = self._markdown_report_path()
 
         if report_path is None:
@@ -1145,12 +1433,14 @@ class HyperkeyUI:
             self.page.update()
 
     def _toggle_app_theme(self, _e) -> None:
-        if self.page.theme_mode == ft.ThemeMode.DARK:
-            self.page.theme_mode = ft.ThemeMode.LIGHT
-            self.theme_button.icon = ft.Icons.DARK_MODE_OUTLINED
-        else:
-            self.page.theme_mode = ft.ThemeMode.DARK
-            self.theme_button.icon = ft.Icons.LIGHT_MODE_OUTLINED
+        """Step the app theme through system -> light -> dark -> system."""
+        self._theme_index = (self._theme_index + 1) % len(self.THEME_CYCLE)
+
+        mode, icon, tooltip = self.THEME_CYCLE[self._theme_index]
+
+        self.page.theme_mode = mode
+        self.theme_button.icon = icon
+        self.theme_button.tooltip = tooltip
         self.page.update()
 
     def _show_help(self, _e) -> None:
@@ -1183,15 +1473,11 @@ class HyperkeyUI:
                     ),
                     help_item(
                         "App theme",
-                        "The sun/moon button in the top-right changes only the Flet application's appearance.",
+                        "The button in the top-right changes only the Hyperkey application's appearance. It cycles through follow-system, light and dark, and starts on follow-system.",
                     ),
                     help_item(
                         "Dark visualisations",
                         "Controls the colour mode of generated heatmaps, spectral graphs and reports. This is separate from the app's own theme button.",
-                    ),
-                    help_item(
-                        "Outlier analysis",
-                        "Runs the outlier-analysis stage when enabled.",
                     ),
                     help_item(
                         "Command preview",
@@ -1204,6 +1490,10 @@ class HyperkeyUI:
                     help_item(
                         "Outputs",
                         "Shows the files generated by the latest successful run. Tap a file to open it in the default application while Hyperkey remains open. The Markdown report is also previewed directly inside the app.",
+                    ),
+                    help_item(
+                        "Viewing plots",
+                        "Tap the heatmap or spectral graph, in the report preview or from its Outputs card, to open it full screen. Pinch to zoom and drag to pan there; the reset button restores the original fit.",
                     ),
                     help_item(
                         "Results and Logs",

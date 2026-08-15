@@ -54,12 +54,11 @@ def project_root() -> Path:
     return Path(__file__).resolve().parent
 
 
-def _import_workflow_module():
+def _ensure_scripts_on_path() -> None:
     """
-    Import scripts/workflow.py.
+    Add scripts/ to sys.path.
 
-    scripts/ is added to sys.path because the existing Hyperkey modules
-    currently use direct imports such as:
+    The existing Hyperkey modules use direct imports such as:
 
         from visualise_heatmap import main
         from pipeline import main
@@ -79,7 +78,22 @@ def _import_workflow_module():
     if scripts_text not in sys.path:
         sys.path.insert(0, scripts_text)
 
+
+def _import_workflow_module():
+    """Import scripts/workflow.py."""
+    _ensure_scripts_on_path()
+
     return importlib.import_module("workflow")
+
+
+def _is_android() -> bool:
+    """Return True when running inside the Flet Android runtime."""
+    try:
+        _ensure_scripts_on_path()
+
+        return importlib.import_module("app_paths").is_android()
+    except Exception:
+        return False
 
 
 def run_gui() -> None:
@@ -136,7 +150,9 @@ def main() -> int:
     """
     arguments = sys.argv[1:]
 
-    if arguments:
+    # There is no command line on Android, and the runtime may pass arguments
+    # of its own, so always launch the interface there.
+    if arguments and not _is_android():
         return run_cli(arguments)
 
     run_gui()
@@ -146,3 +162,10 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+elif _is_android():
+    # Flet's Android runtime may import the entry module rather than execute it
+    # as __main__, in which case the block above never runs. Starting here
+    # covers that; on desktop this branch is inert, so `import hyperkey` from
+    # a test or another tool still has no side effects.
+    run_gui()
