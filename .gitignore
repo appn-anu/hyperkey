@@ -4,3 +4,4 @@ scripts/__pycache__/
 data/output_data/
 ui\__pycache__
 __pycache__
+build/
