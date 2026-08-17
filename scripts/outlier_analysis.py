@@ -47,7 +47,7 @@ DEFAULT_GROUP_BY = None
 
 # Minimum number of valid readings required at a wavelength before
 # that wavelength is included in outlier detection.
-DEFAULT_MIN_VALID_VALUES = 2
+DEFAULT_MIN_VALID_VALUES = 10
 
 # ddof=1 calculates sample standard deviation.
 DEFAULT_DDOF = 1
