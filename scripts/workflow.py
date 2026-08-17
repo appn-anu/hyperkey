@@ -93,8 +93,7 @@ def run_pipeline(cli_arguments=None):
             # main(input_path=None, output_name=None, dark_mode=True)
             outlier_main(
                 input_path=output_csv,
-                output_name=outlier_output_name,
-                dark_mode=dark_mode
+                output_path=outlier_output_name
             )
             completed_stages.append("outlier_analysis")
             print("outlier_analysis.py completed successfully.")
