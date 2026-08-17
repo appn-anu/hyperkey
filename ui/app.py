@@ -471,7 +471,11 @@ class HyperkeyUI:
             ("Merged spectral data", summary.get("output_csv")),
             ("Heatmap", summary.get("heatmap_output")),
             ("Spectral graph", summary.get("spectral_graph_output")),
+             ("Markdown report", summary.get("report_markdown_output")),
+            ("HTML report", summary.get("report_html_output")),
+            ("PDF report", summary.get("report_pdf_output")),
         ]
+
 
         # Show outlier output too whenever that stage generated a file.
         outlier = summary.get("outlier_output")
