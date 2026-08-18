@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+# Example:
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
+# python hyperkey.py -h
+
 """
 Public Hyperkey entrypoint.
 
