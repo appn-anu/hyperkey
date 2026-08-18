@@ -1,5 +1,7 @@
 # Hyperkey
 
+[![CI/CD Tests](https://github.com/appn-anu/hyperkey/actions/workflows/tests.yml/badge.svg)](https://github.com/appn-anu/hyperkey/actions/workflows/tests.yml)
+
 HyperKey is a fast leaf-level hyperspectral data review tool for creating visualisations from measurements taken with an SVC HR i series. This is a currently a CLI tool with plans to become a mobile app in the future. It takes in a folder of .sig measurements and one or multiple metadata csv files and outputs a data report to easily visualise the data.
 
 ## Basic use of HyperKey
