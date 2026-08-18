@@ -105,28 +105,14 @@ def _read_generated_log(result: dict[str, Any]) -> list[str]:
 
 def run_hyperkey_backend(
     arguments: list[str],
+    outlier_settings: dict[str, object] | None = None,
 ) -> dict[str, object] | None:
     """
     Run the complete Hyperkey workflow.
 
-    This is the single backend boundary used by the Flet UI.
-
-    Flow:
-        Flet UI
-            ->
-        ui/backend.py
-            ->
-        scripts/workflow.py
-            ->
-        scripts/pipeline.py
-            ->
-        visualise_heatmap.py
-            ->
-        visualise_measurement.py
-            ->
-        outlier_analysis.py (optional)
-            ->
-        report.py
+    The normal Hyperkey CLI arguments are passed unchanged. Optional outlier
+    settings from the friendly UI travel separately and therefore never become
+    public CLI arguments.
     """
     workflow = _import_workflow_module()
 
@@ -135,10 +121,13 @@ def run_hyperkey_backend(
     if runner is None:
         raise RuntimeError(
             "scripts/workflow.py does not provide "
-            "run_pipeline(cli_arguments=None)."
+            "run_pipeline(cli_arguments=None, outlier_settings=None)."
         )
 
-    result = runner(arguments)
+    result = runner(
+        arguments,
+        outlier_settings=outlier_settings,
+    )
 
     if result is None:
         return None

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shlex
 from collections.abc import Callable
 from pathlib import Path
@@ -8,7 +7,10 @@ from pathlib import Path
 from .models import HyperkeyRunConfig, RunResult
 
 
-BackendRunner = Callable[[list[str]], dict[str, object] | None]
+BackendRunner = Callable[
+    [list[str], dict[str, object] | None],
+    dict[str, object] | None,
+]
 
 
 class PipelineService:
@@ -18,6 +20,9 @@ class PipelineService:
     By default this service connects to ui.backend.run_hyperkey_backend(),
     so both the friendly form and CLI fallback execute the same workflow.
     A custom backend_runner can still be supplied for testing.
+
+    Outlier tuning values from the friendly form are passed separately from
+    CLI arguments. This keeps Hyperkey's public CLI unchanged.
     """
 
     def __init__(self, backend_runner: BackendRunner | None = None):
@@ -36,6 +41,38 @@ class PipelineService:
 
         if not config.root_folder.strip():
             errors.append("Enter the raw spectral-data root folder.")
+
+        sd_threshold = config.outlier_sd_threshold.strip()
+        if sd_threshold:
+            try:
+                if float(sd_threshold) <= 0:
+                    errors.append("Outlier SD threshold must be greater than 0.")
+            except ValueError:
+                errors.append("Outlier SD threshold must be a number.")
+
+        max_outliers = config.outlier_max_outliers.strip()
+        if max_outliers and max_outliers.lower() not in {"none", "all"}:
+            try:
+                if int(max_outliers) < 1:
+                    errors.append("Maximum outliers must be at least 1, or None/all.")
+            except ValueError:
+                errors.append("Maximum outliers must be a whole number, or None/all.")
+
+        min_valid_values = config.outlier_min_valid_values.strip()
+        if min_valid_values:
+            try:
+                if int(min_valid_values) < 2:
+                    errors.append("Minimum valid values must be at least 2.")
+            except ValueError:
+                errors.append("Minimum valid values must be a whole number.")
+
+        ddof = config.outlier_ddof.strip()
+        if ddof:
+            try:
+                if int(ddof) < 0:
+                    errors.append("DDOF cannot be negative.")
+            except ValueError:
+                errors.append("DDOF must be a whole number.")
 
         return errors
 
@@ -59,11 +96,53 @@ class PipelineService:
         if not config.dark_mode:
             args.append("-d")
 
-        # New flag to be added to the backend parser during the pipeline update.
+        # The six detailed outlier settings are intentionally NOT CLI arguments.
         if config.outlier_analysis:
             args.append("--outlier-analysis")
 
         return args
+
+    @staticmethod
+    def build_outlier_settings(config: HyperkeyRunConfig) -> dict[str, object]:
+        """
+        Build UI-only outlier overrides.
+
+        Missing fields are omitted so workflow.py/outlier_analysis.py remains the
+        source of truth for defaults.
+        """
+        settings: dict[str, object] = {}
+
+        sd_threshold = config.outlier_sd_threshold.strip()
+        if sd_threshold:
+            settings["sd_threshold"] = float(sd_threshold)
+
+        max_outliers = config.outlier_max_outliers.strip()
+        if max_outliers:
+            if max_outliers.lower() in {"none", "all"}:
+                settings["max_outliers"] = None
+            else:
+                settings["max_outliers"] = int(max_outliers)
+
+        id_column = config.outlier_id_column.strip()
+        if id_column:
+            settings["id_column"] = id_column
+
+        group_by = config.outlier_group_by.strip()
+        if group_by:
+            if group_by.lower() in {"none", "no grouping", "no-grouping"}:
+                settings["group_by"] = None
+            else:
+                settings["group_by"] = group_by
+
+        min_valid_values = config.outlier_min_valid_values.strip()
+        if min_valid_values:
+            settings["min_valid_values"] = int(min_valid_values)
+
+        ddof = config.outlier_ddof.strip()
+        if ddof:
+            settings["ddof"] = int(ddof)
+
+        return settings
 
     @staticmethod
     def format_command(arguments: list[str]) -> str:
@@ -107,7 +186,11 @@ class PipelineService:
 
         return tokens
 
-    def run_arguments(self, arguments: list[str]) -> RunResult:
+    def run_arguments(
+        self,
+        arguments: list[str],
+        outlier_settings: dict[str, object] | None = None,
+    ) -> RunResult:
         if not arguments:
             return RunResult(False, "No Hyperkey arguments were supplied.")
 
@@ -120,7 +203,7 @@ class PipelineService:
             )
 
         try:
-            backend_result = self.backend_runner(arguments) or {}
+            backend_result = self.backend_runner(arguments, outlier_settings) or {}
 
             # ui/backend.py places generated error_log.txt lines under "_logs".
             # Keep those out of the Results summary and surface them in Logs.
@@ -151,4 +234,11 @@ class PipelineService:
         if errors:
             return RunResult(False, "\n".join(errors), logs=errors)
 
-        return self.run_arguments(self.build_arguments(config))
+        outlier_settings = None
+        if config.outlier_analysis:
+            outlier_settings = self.build_outlier_settings(config)
+
+        return self.run_arguments(
+            self.build_arguments(config),
+            outlier_settings=outlier_settings,
+        )

@@ -16,6 +16,15 @@ class HyperkeyRunConfig:
     dark_mode: bool = True
     outlier_analysis: bool = False
 
+    # UI-only outlier overrides. Empty strings mean "use stored default".
+    # These values are NOT converted into CLI arguments.
+    outlier_sd_threshold: str = ""
+    outlier_max_outliers: str = ""
+    outlier_id_column: str = ""
+    outlier_group_by: str = ""
+    outlier_min_valid_values: str = ""
+    outlier_ddof: str = ""
+
     def output_argument(self) -> str | None:
         """Return the value that should eventually be passed to -o/--output."""
         name = self.output_name.strip()
