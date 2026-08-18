@@ -1,4 +1,4 @@
-# Development and testing dependencies
+# Testing and development dependencies
 -r requirements.txt
 
 pytest==8.0.0

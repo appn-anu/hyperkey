@@ -9,7 +9,7 @@ This guide explains how to write unit tests, run tests locally, and understand t
 ### 1. Install Development Dependencies
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r test-requirements.txt
 ```
 
 This installs:
@@ -34,7 +34,7 @@ hyperkey/
 │   └── ...
 ├── conftest.py          # Pytest fixtures and configuration (NEW)
 ├── pytest.ini           # Pytest settings (NEW)
-└── requirements-dev.txt # Development dependencies (NEW)
+└── test-requirements.txt # Testing dependencies (NEW)
 ```
 
 ## Running Tests Locally
@@ -191,7 +191,7 @@ def test_command_line():
 Two main workflows run automatically on every push and pull request:
 
 #### 1. **tests.yml** - Unit Tests and Coverage
-- **Triggers**: Push to `main`/`develop`, Pull Requests
+- **Triggers**: Push to `main`/`testing`, Pull Requests
 - **Tests Against**: Python 3.9, 3.10, 3.11, 3.12
 - **Steps**:
   1. Checkout code
@@ -326,7 +326,7 @@ open htmlcov/index.html
 pytest --version
 
 # Reinstall dependencies
-pip install --force-reinstall -r requirements-dev.txt
+pip install --force-reinstall -r test-requirements.txt
 ```
 
 ### Import Errors in Tests
