@@ -259,7 +259,7 @@ def resolve_image_path(image_path_value, project_root, output_dir):
 def generate_pdf_report(data, project_root):
     output_dir = project_root / "data" / "output_data"
     pdf_path = output_dir / get_report_filename(data, "pdf")
-
+    # This is fpdf2
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
