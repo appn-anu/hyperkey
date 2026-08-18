@@ -166,6 +166,46 @@ class HyperkeyUI:
             ],
         )
 
+    def _outlier_settings_panel(self) -> ft.Control:
+        """Advanced outlier settings. Collapsed by default on desktop and mobile."""
+        fields = [
+            self.outlier_sd_threshold_field,
+            self.outlier_max_outliers_field,
+            self.outlier_id_column_field,
+            self.outlier_group_by_field,
+            self.outlier_min_valid_values_field,
+            self.outlier_ddof_field,
+        ]
+
+        return ft.Container(
+            border=ft.Border.all(1, ft.Colors.GREY_700),
+            border_radius=10,
+            content=ft.ExpansionTile(
+                title=ft.Text("Outlier settings", weight=ft.FontWeight.W_600),
+                subtitle=ft.Text(
+                    "Optional overrides. Leave fields empty to use the stored defaults.",
+                    theme_style=ft.TextThemeStyle.BODY_SMALL,
+                ),
+                expanded=False,
+                controls=[
+                    ft.Container(
+                        padding=ft.Padding.only(left=12, right=12, bottom=14),
+                        content=ft.ResponsiveRow(
+                            spacing=10,
+                            run_spacing=10,
+                            controls=[
+                                ft.Container(
+                                    col={"xs": 12, "sm": 6, "md": 4},
+                                    content=field,
+                                )
+                                for field in fields
+                            ],
+                        ),
+                    )
+                ],
+            ),
+        )
+
     def _screen_title(self, title: str, subtitle: str) -> ft.Control:
         return ft.Column(
             spacing=3,
@@ -216,6 +256,37 @@ class HyperkeyUI:
             value=False,
             on_change=self._refresh_command_preview,
         )
+
+        # Optional UI-only outlier overrides. The fields intentionally start
+        # empty: hint_text shows the stored backend default, while an empty
+        # value means "do not override the workflow/outlier default".
+        self.outlier_sd_threshold_field = self._style_input_field(ft.TextField(
+            label="SD threshold",
+            hint_text="Default: 2.0",
+            keyboard_type=ft.KeyboardType.NUMBER,
+        ))
+        self.outlier_max_outliers_field = self._style_input_field(ft.TextField(
+            label="Maximum outliers",
+            hint_text="Default: 20 (or type None for all)",
+        ))
+        self.outlier_id_column_field = self._style_input_field(ft.TextField(
+            label="ID column",
+            hint_text="Default: FileNum",
+        ))
+        self.outlier_group_by_field = self._style_input_field(ft.TextField(
+            label="Group by",
+            hint_text="Default: None (e.g. Name, Genotype)",
+        ))
+        self.outlier_min_valid_values_field = self._style_input_field(ft.TextField(
+            label="Minimum valid values",
+            hint_text="Default: 10",
+            keyboard_type=ft.KeyboardType.NUMBER,
+        ))
+        self.outlier_ddof_field = self._style_input_field(ft.TextField(
+            label="DDOF",
+            hint_text="Default: 1",
+            keyboard_type=ft.KeyboardType.NUMBER,
+        ))
 
         self.form_status = ft.Text()
         self.processing_bar = ft.ProgressBar(visible=False)
@@ -383,6 +454,12 @@ class HyperkeyUI:
             output_directory=(self.output_directory_field.value or "").strip(),
             dark_mode=bool(self.dark_mode_switch.value),
             outlier_analysis=bool(self.outlier_switch.value),
+            outlier_sd_threshold=(self.outlier_sd_threshold_field.value or "").strip(),
+            outlier_max_outliers=(self.outlier_max_outliers_field.value or "").strip(),
+            outlier_id_column=(self.outlier_id_column_field.value or "").strip(),
+            outlier_group_by=(self.outlier_group_by_field.value or "").strip(),
+            outlier_min_valid_values=(self.outlier_min_valid_values_field.value or "").strip(),
+            outlier_ddof=(self.outlier_ddof_field.value or "").strip(),
         )
 
     async def _portable_file_path(self, picked: ft.FilePickerFile) -> str:
@@ -497,7 +574,10 @@ class HyperkeyUI:
             "Analysis options",
             subtitle="Hyperkey's interface and generated visualisations share the same dark-mode setting.",
             icon=ft.Icons.TUNE,
-            controls=[self._responsive_switches()],
+            controls=[
+                self._responsive_switches(),
+                self._outlier_settings_panel(),
+            ],
         )
 
         command_card = self._section_panel(
@@ -1077,6 +1157,77 @@ class HyperkeyUI:
             )
             return
 
+        # --------------------------------------------------------------
+        # Report preview - output tab below
+        # --------------------------------------------------------------
+        report_path = self._markdown_report_path()
+
+        if report_path is None:
+            self.outputs_content.controls.append(
+                section_card(
+                    "Report preview",
+                    subtitle="Markdown is the native in-app report format used by Hyperkey.",
+                    controls=[
+                        ft.Text(
+                            "No Markdown report was found in the current output directory."
+                        )
+                    ],
+                )
+            )
+        else:
+            try:
+                markdown_text = report_path.read_text(
+                    encoding="utf-8",
+                    errors="replace",
+                )
+            except Exception as exc:
+                self.outputs_content.controls.append(
+                    section_card(
+                        "Report preview",
+                        controls=[ft.Text(f"Unable to read report: {exc}")],
+                    )
+                )
+            else:
+                async def open_report(_e) -> None:
+                    await self._open_output_path(report_path)
+
+                self.outputs_content.controls.append(
+                    section_card(
+                        "Report preview",
+                        subtitle=(
+                            f"{report_path.name} • Markdown is rendered directly inside Flet."
+                        ),
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    # ft.Text(str(report_path), expand=False, selectable=False),
+                                    # A long unwanted space issue, need fix later.
+                                    # Feature not requested by user, so commented out for now.
+                                    ft.Button(
+                                        content="Open report",
+                                        icon=ft.Icons.OPEN_IN_NEW,
+                                        on_click=open_report,
+                                    ),
+                                ],
+                                wrap=True,
+                            ),
+                            ft.Container(
+                                padding=12,
+                                content=ft.Column(
+                                    spacing=8,
+                                    controls=self._markdown_report_controls(
+                                        markdown_text,
+                                        report_path,
+                                    ),
+                                ),
+                            ),
+                        ],
+                    )
+                )
+
+        # --------------------------------------------------------------
+        # Generated files 
+        # --------------------------------------------------------------
         generated_files = self._generated_output_files()
 
         if generated_files:
@@ -1102,71 +1253,6 @@ class HyperkeyUI:
                     ],
                 )
             )
-        report_path = self._markdown_report_path()
-
-        if report_path is None:
-            self.outputs_content.controls.append(
-                section_card(
-                    "Report preview",
-                    subtitle="Markdown is the native in-app report format used by Hyperkey.",
-                    controls=[
-                        ft.Text(
-                            "No Markdown report was found in the current output directory."
-                        )
-                    ],
-                )
-            )
-            return
-
-        try:
-            markdown_text = report_path.read_text(
-                encoding="utf-8",
-                errors="replace",
-            )
-        except Exception as exc:
-            self.outputs_content.controls.append(
-                section_card(
-                    "Report preview",
-                    controls=[ft.Text(f"Unable to read report: {exc}")],
-                )
-            )
-            return
-
-        async def open_report(_e) -> None:
-            await self._open_output_path(report_path)
-
-        self.outputs_content.controls.append(
-            section_card(
-                "Report preview",
-                subtitle=(
-                    f"{report_path.name} • Markdown is rendered directly inside Flet."
-                ),
-                controls=[
-                    ft.Row(
-                        controls=[
-                            # ft.Text(str(report_path), expand=False, selectable=False), 
-                            # A long unwanted space issue, need fix later. Feature not requested by user, so commented out for now.
-                            ft.Button(
-                                content="Open report",
-                                icon=ft.Icons.OPEN_IN_NEW,
-                                on_click=open_report,
-                            ),
-                        ],
-                        wrap=True,
-                    ),
-                    ft.Container(
-                        padding=12,
-                        content=ft.Column(
-                            spacing=8,
-                            controls=self._markdown_report_controls(
-                                markdown_text,
-                                report_path,
-                            ),
-                        ),
-                    ),
-                ],
-            )
-        )
 
     def _logs_screen(self) -> ft.Control:
         return ft.Container(
@@ -1406,7 +1492,7 @@ class HyperkeyUI:
                     ),
                     help_item(
                         "Outlier analysis",
-                        "Runs the outlier-analysis stage when enabled.",
+                        "Runs the outlier-analysis stage when enabled. Expand Outlier settings to optionally override SD threshold, maximum outliers, ID column, grouping, minimum valid values, or DDOF. Empty fields keep the stored backend defaults.",
                     ),
                     help_item(
                         "Command preview",
