@@ -7,10 +7,10 @@ kiwisolver==1.5.0
 Markdown==3.10.3
 matplotlib==3.11.1
 numpy==2.5.1
+fpdf2==2.8.7
 packaging==26.2
 pandas==3.0.5
 pillow==12.3.0
-playwright==1.62.0
 pyee==13.0.1
 pyparsing==3.3.2
 python-dateutil==2.9.0.post0
