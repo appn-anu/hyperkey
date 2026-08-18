@@ -5,6 +5,7 @@
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o data/TestHyperKey/sydneyAPPN
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
 # python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
+# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" --outlier-analysis
 # python scripts/pipeline.py -h
 
 import argparse
@@ -415,10 +416,6 @@ def main(cli_arguments=None):
 
     log_path = output_directory / "error_log.txt"
     summary_path = output_directory / "summary.json"
-    report_markdown_output = output_directory / f"{report_output_name}.md"
-    report_pdf_output = output_directory / f"{report_output_name}.pdf"
-    report_html_output = output_directory / f"{report_output_name}.html"
-
     # ---------------------------
     # 2. Selection Phase
     # ---------------------------
