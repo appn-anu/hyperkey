@@ -3,7 +3,7 @@ from pathlib import Path
 import markdown
 import load_data as ld
 from datetime import datetime
-from playwright.sync_api import sync_playwright
+from fpdf import FPDF
 
 # This method loads the summary.json file that has success matrix and visual data path
 # report_ddmmyyyy for without custom_output_name
@@ -72,14 +72,14 @@ def generate_markdown_report(data, project_root):
     
 
     report_text = f"""
-# Hyperkey Processing Report
+# HyperKey Processing Report
 
 Generated: {data["timestamp"]}
 
 ## Processing Summary
 
 | Metric | Value |
-|---|---|
+|---|---:|
 | Total rows in metadata | {data["total_rows"]} |
 | Successfully matched files | {data["matched_files"]} |
 | Blank FileNum rows | {data["blank_filenum"]} |
@@ -111,10 +111,8 @@ This section includes:
 
 # This method uses the markdown file to generate the html file saves it in the 
 # output_data directory 
-def generate_html_report(data, report_text, project_root):
+def generate_html_report(data, report_text, project_root, dark_mode):
     html_body = markdown.markdown(report_text, extensions=["tables"])
-    dark_mode = data["dark_mode"]
-    print(dark_mode)
 
 
     if dark_mode:
@@ -222,12 +220,6 @@ def generate_html_report(data, report_text, project_root):
         color: #4fc3f7;
         }}
 
-        th:last-child,
-        td:last-child {{
-        text-align: right;
-        
-        }}
-
     
     </style>
 </head>
@@ -262,49 +254,157 @@ def resolve_image_path(image_path_value, project_root, output_dir):
     return possible_output_path
 
 
+
+
 def generate_pdf_report(data, project_root):
     output_dir = project_root / "data" / "output_data"
-
-    html_path = output_dir / get_report_filename(data, "html")
     pdf_path = output_dir / get_report_filename(data, "pdf")
+    # This is fpdf2
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
+    # Report title
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.cell(0, 12, "HyperKey Processing Report", new_x="LMARGIN", new_y="NEXT")
 
-        page = browser.new_page()
+    # Generated timestamp
+    pdf.set_font("Helvetica", size=11)
+    pdf.cell(0, 8, f"Generated: {data['timestamp']}", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(8)
 
-        page.goto(
-            f"file:///{html_path}",
-            wait_until="networkidle"
+    # Processing Summary
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.cell(0, 10, "Processing Summary", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", size=11)
+
+    summary_rows = [
+        ("Total rows in metadata", data["total_rows"]),
+        ("Successfully matched files", data["matched_files"]),
+        ("Blank FileNum rows", data["blank_filenum"]),
+        ("Invalid FileNum rows", data["invalid_filenum"]),
+        ("Missing .sig files", data["missing_sig_files"]),
+    ]
+
+    # Table header
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.cell(120, 9, "Metric", border=1)
+    pdf.cell(50,9,"Value",border=1,align="R",new_x="LMARGIN",new_y="NEXT")
+
+    # Table rows
+    pdf.set_font("Helvetica", size=11)
+
+    for metric, value in summary_rows:
+        pdf.cell(120, 9, str(metric), border=1)
+        pdf.cell(50, 9, str(value), border=1, align="R", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.ln(8)
+
+    # Generated Files
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.cell(0, 10, "Generated Files", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("Helvetica", size=11)
+
+    pdf.multi_cell(
+        0,
+        7,
+        f"Merged CSV: {data['output_csv']}",
+        new_x="LMARGIN",
+        new_y="NEXT"
+    )
+
+    pdf.multi_cell(
+        0,
+        7,
+        f"Log file: {data['log_file']}",
+        new_x="LMARGIN",
+        new_y="NEXT"
+    )
+
+    pdf.ln(8)
+
+    # Visualisations
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.cell(
+        0,
+        10,
+        "Visualisations",
+        new_x="LMARGIN",
+        new_y="NEXT"
+    )
+
+    for item in data.get("visualisations", []):
+        image_path = resolve_image_path(
+            item["path"],
+            project_root,
+            output_dir
         )
 
-        page.pdf(
-            path=str(pdf_path),
-            format="A4",
-            print_background=True,
-            margin={
-                "top": "40px",
-                "bottom": "40px",
-                "left": "40px",
-                "right": "40px"
+        if image_path.exists():
+            pdf.set_font("Helvetica", "B", 12)
 
-            }
+            pdf.cell(
+                0,
+                10,
+                item["title"],
+                new_x="LMARGIN",
+                new_y="NEXT"
+            )
+
+            pdf.image(
+                str(image_path),
+                x=20,
+                w=170
+            )
+
+            pdf.ln(10)
+
+    # Spectral images
+    for item in data.get("spectral_image", []):
+        image_path = resolve_image_path(
+            item["path"],
+            project_root,
+            output_dir
         )
 
-        browser.close()
+        if image_path.exists():
+            pdf.set_font("Helvetica", "B", 12)
+
+            pdf.cell(
+                0,
+                10,
+                item["title"],
+                new_x="LMARGIN",
+                new_y="NEXT"
+            )
+
+            pdf.image(
+                str(image_path),
+                x=20,
+                w=170
+            )
+
+            pdf.ln(10)
+
+    pdf.output(str(pdf_path))
 
     print(f"PDF report saved to: {pdf_path}")
+    
 
 # This main function takes summary.json and generates all three types of reports and 
 # saves them in the output_data directory
-def main(dark_mode):
+def main():
     project_root = ld.get_project_root()
+
+    dark_mode = False
 
     data = load_summary_json(project_root)
 
     report_text = generate_markdown_report(data, project_root)
 
-    generate_html_report(data, report_text, project_root)
+    generate_html_report(data, report_text, project_root, dark_mode)
 
     generate_pdf_report(data, project_root)
 
