@@ -31,7 +31,9 @@ class HyperkeyUI:
     # ------------------------------------------------------------------
     def _configure_page(self) -> None:
         self.page.title = "Hyperkey"
-        self.page.theme_mode = ft.ThemeMode.LIGHT
+
+        # Follow the operating system's current light/dark preference by default.
+        self.page.theme_mode = ft.ThemeMode.SYSTEM
         self.page.padding = 0
 
         # Keep the visual language simple and close to Material defaults so the
@@ -39,41 +41,175 @@ class HyperkeyUI:
         self.page.theme = ft.Theme(use_material3=True)
         self.page.dark_theme = ft.Theme(use_material3=True)
 
+        # Keep Hyperkey in sync if the user changes the OS appearance while the
+        # application is open.
+        self.page.on_platform_brightness_change = self._on_platform_brightness_change
+
+    def _style_input_field(self, field: ft.TextField) -> ft.TextField:
+        """
+        Give input/command fields a clearly visible outline on both Windows
+        and Android while preserving responsive sizing.
+        """
+        field.border = ft.InputBorder.OUTLINE
+        field.border_width = 2
+        field.border_color = ft.Colors.GREY_600
+        field.focused_border_width = 3
+        field.focused_border_color = ft.Colors.BLUE_400
+        field.border_radius = 10
+        field.content_padding = ft.Padding.symmetric(horizontal=16, vertical=15)
+        field.expand = True
+        return field
+
+    def _section_panel(
+        self,
+        title: str,
+        *,
+        subtitle: str | None = None,
+        controls: list[ft.Control] | None = None,
+        icon=None,
+    ) -> ft.Control:
+        """A clean Material-style section that works on desktop and mobile."""
+        heading_controls: list[ft.Control] = []
+        if icon is not None:
+            heading_controls.append(ft.Icon(icon, size=20))
+
+        heading_controls.append(
+            ft.Column(
+                spacing=1,
+                expand=True,
+                controls=[
+                    ft.Text(title, weight=ft.FontWeight.W_600, size=16),
+                    ft.Text(
+                        subtitle or "",
+                        theme_style=ft.TextThemeStyle.BODY_SMALL,
+                        visible=bool(subtitle),
+                    ),
+                ],
+            )
+        )
+
+        return ft.Card(
+            elevation=1,
+            content=ft.Container(
+                padding=ft.Padding.symmetric(horizontal=16, vertical=14),
+                border=ft.Border.all(1, ft.Colors.GREY_700),
+                border_radius=12,
+                content=ft.Column(
+                    spacing=14,
+                    controls=[
+                        ft.Row(
+                            spacing=10,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            controls=heading_controls,
+                        ),
+                        ft.Divider(height=1),
+                        *(controls or []),
+                    ],
+                ),
+            ),
+        )
+
+    def _responsive_browse_field(
+        self,
+        field: ft.TextField,
+        picker,
+        *,
+        button_text: str,
+        button_icon=ft.Icons.FOLDER_OPEN_OUTLINED,
+    ) -> ft.Control:
+        """
+        Desktop: field and Browse button share one row.
+        Android/small widths: Browse button moves below the field and becomes easy to tap.
+        """
+        browse_button = ft.Button(
+            content=button_text,
+            icon=button_icon,
+            on_click=picker,
+            height=48,
+        )
+
+        return ft.ResponsiveRow(
+            spacing=10,
+            run_spacing=8,
+            controls=[
+                ft.Container(
+                    col={"xs": 12, "sm": 12, "md": 9, "lg": 10},
+                    content=field,
+                ),
+                ft.Container(
+                    col={"xs": 12, "sm": 12, "md": 3, "lg": 2},
+                    content=browse_button,
+                ),
+            ],
+        )
+
+    def _responsive_switches(self) -> ft.Control:
+        """Stack switches on phones and show them side-by-side on larger screens."""
+        return ft.ResponsiveRow(
+            spacing=12,
+            run_spacing=8,
+            controls=[
+                ft.Container(
+                    col={"xs": 12, "sm": 6},
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=6),
+                    border=ft.Border.all(1, ft.Colors.GREY_700),
+                    border_radius=10,
+                    content=self.dark_mode_switch,
+                ),
+                ft.Container(
+                    col={"xs": 12, "sm": 6},
+                    padding=ft.Padding.symmetric(horizontal=8, vertical=6),
+                    border=ft.Border.all(1, ft.Colors.GREY_700),
+                    border_radius=10,
+                    content=self.outlier_switch,
+                ),
+            ],
+        )
+
+    def _screen_title(self, title: str, subtitle: str) -> ft.Control:
+        return ft.Column(
+            spacing=3,
+            controls=[
+                ft.Text(title, theme_style=ft.TextThemeStyle.HEADLINE_SMALL, weight=ft.FontWeight.BOLD),
+                ft.Text(subtitle, theme_style=ft.TextThemeStyle.BODY_MEDIUM),
+            ],
+        )
+
     def _create_controls(self) -> None:
         # Normal form fields
-        self.metadata_field = ft.TextField(
+        self.metadata_field = self._style_input_field(ft.TextField(
             label="Metadata CSV file(s)",
             hint_text="Enter one file path per line",
             multiline=True,
             min_lines=2,
             max_lines=4,
             on_change=self._refresh_command_preview,
-        )
-        self.root_field = ft.TextField(
+        ))
+        self.root_field = self._style_input_field(ft.TextField(
             label="Raw spectral-data root folder",
             hint_text="Folder containing .sig files",
             on_change=self._refresh_command_preview,
-        )
-        self.location_field = ft.TextField(
+        ))
+        self.location_field = self._style_input_field(ft.TextField(
             label="Species location file (optional)",
             hint_text="Path to location CSV",
             on_change=self._refresh_command_preview,
-        )
-        self.output_name_field = ft.TextField(
+        ))
+        self.output_name_field = self._style_input_field(ft.TextField(
             label="Output name (optional)",
             hint_text="Example: sydneyAPPN",
             on_change=self._refresh_command_preview,
-        )
-        self.output_directory_field = ft.TextField(
+        ))
+        self.output_directory_field = self._style_input_field(ft.TextField(
             label="Output directory (optional)",
             hint_text="Where generated files should be saved",
             on_change=self._refresh_command_preview,
-        )
+        ))
 
         self.dark_mode_switch = ft.Switch(
-            label="Dark visualisations",
-            value=True,
-            on_change=self._refresh_command_preview,
+            label="Dark mode",
+            value=self._system_is_dark(),
+            on_change=self._on_dark_mode_switch_change,
         )
         self.outlier_switch = ft.Switch(
             label="Outlier analysis",
@@ -83,36 +219,39 @@ class HyperkeyUI:
 
         self.form_status = ft.Text()
         self.processing_bar = ft.ProgressBar(visible=False)
-        self.command_preview = ft.TextField(
+        self.command_preview = self._style_input_field(ft.TextField(
             label="Equivalent CLI command",
             read_only=True,
             multiline=True,
-            min_lines=2,
-            max_lines=4,
-        )
+            min_lines=4,
+            max_lines=8,
+        ))
 
-        # Advanced CLI fallback
-        self.cli_field = ft.TextField(
+        # Advanced CLI fallback. Keep this deliberately large because commands
+        # can be long, especially when Android returns longer document paths.
+        self.cli_field = self._style_input_field(ft.TextField(
             label="Hyperkey arguments or full command",
             hint_text=(
                 'metadata.csv -r raw_data -o result  OR  '
                 'python hyperkey.py metadata.csv -r raw_data'
             ),
             multiline=True,
-            min_lines=5,
-            max_lines=9,
-        )
+            min_lines=8,
+            max_lines=14,
+        ))
         self.cli_status = ft.Text()
 
         self.run_button = ft.Button(
             content="Run Hyperkey",
             icon=ft.Icons.PLAY_ARROW,
             on_click=self._run_form,
+            height=52,
         )
         self.cli_run_button = ft.Button(
             content="Run arguments",
             icon=ft.Icons.TERMINAL,
             on_click=self._run_cli,
+            height=52,
         )
 
         # Results / outputs / log controls
@@ -124,20 +263,24 @@ class HyperkeyUI:
         self.output_status = ft.Text()
         self.url_launcher = ft.UrlLauncher()
 
-        self.logs_field = ft.TextField(
+        self.logs_field = self._style_input_field(ft.TextField(
             label="Run log",
             multiline=True,
             read_only=True,
             min_lines=14,
             max_lines=24,
             value="No run has been started yet.",
-        )
+        ))
 
         self.content_host = ft.Container(expand=True)
 
         self.theme_button = ft.IconButton(
-            icon=ft.Icons.DARK_MODE_OUTLINED,
-            tooltip="Toggle app theme",
+            icon=(
+                ft.Icons.LIGHT_MODE_OUTLINED
+                if self._system_is_dark()
+                else ft.Icons.DARK_MODE_OUTLINED
+            ),
+            tooltip="Toggle Hyperkey dark mode",
             on_click=self._toggle_app_theme,
         )
         self.help_button = ft.IconButton(
@@ -182,19 +325,26 @@ class HyperkeyUI:
 
     def _build_shell(self) -> None:
         header = ft.Container(
-            padding=ft.Padding.symmetric(horizontal=16, vertical=10),
+            padding=ft.Padding.symmetric(horizontal=14, vertical=10),
             content=ft.Row(
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 controls=[
+                    ft.Image(
+                        src="hyperkey-logo-full.png",
+                        height=46,
+                        fit=ft.BoxFit.CONTAIN,
+                    ),
                     ft.Column(
+                        spacing=0,
+                        expand=True,
                         controls=[
-                            ft.Text("HYPERKEY", theme_style=ft.TextThemeStyle.TITLE_LARGE),
+                            ft.Text("Hyperkey", weight=ft.FontWeight.BOLD, size=17),
                             ft.Text(
                                 "Hyperspectral data processing",
                                 theme_style=ft.TextThemeStyle.BODY_SMALL,
                             ),
                         ],
-                        spacing=0,
-                        expand=True,
                     ),
                     self.help_button,
                     self.theme_button,
@@ -304,18 +454,23 @@ class HyperkeyUI:
     # Screens
     # ------------------------------------------------------------------
     def _run_screen(self) -> ft.Control:
-        input_card = section_card(
+        input_card = self._section_panel(
             "Input data",
-            subtitle="Type paths directly or use Browse.",
+            subtitle="Choose the metadata and raw spectral-data sources.",
+            icon=ft.Icons.DATA_OBJECT_OUTLINED,
             controls=[
-                browse_field(
+                self._responsive_browse_field(
                     self.metadata_field,
                     self._pick_metadata,
                     button_text="Browse CSV",
                     button_icon=ft.Icons.UPLOAD_FILE,
                 ),
-                browse_field(self.root_field, self._pick_root_folder, button_text="Browse folder"),
-                browse_field(
+                self._responsive_browse_field(
+                    self.root_field,
+                    self._pick_root_folder,
+                    button_text="Browse folder",
+                ),
+                self._responsive_browse_field(
                     self.location_field,
                     self._pick_location,
                     button_text="Browse CSV",
@@ -324,75 +479,108 @@ class HyperkeyUI:
             ],
         )
 
-        output_card = section_card(
+        output_card = self._section_panel(
             "Output",
-            subtitle="Leave optional values blank to keep backend defaults.",
+            subtitle="Optional naming and destination settings.",
+            icon=ft.Icons.FOLDER_COPY_OUTLINED,
             controls=[
                 self.output_name_field,
-                browse_field(self.output_directory_field, self._pick_output_folder, button_text="Browse folder"),
+                self._responsive_browse_field(
+                    self.output_directory_field,
+                    self._pick_output_folder,
+                    button_text="Browse folder",
+                ),
             ],
         )
 
-        options_card = section_card(
+        options_card = self._section_panel(
             "Analysis options",
-            controls=[
-                self.dark_mode_switch,
-                self.outlier_switch,
-            ],
+            subtitle="Hyperkey's interface and generated visualisations share the same dark-mode setting.",
+            icon=ft.Icons.TUNE,
+            controls=[self._responsive_switches()],
         )
 
-        command_card = section_card(
-            "Command preview",
-            subtitle="This is the equivalent hyperkey.py CLI command.",
+        command_card = self._section_panel(
+            "Equivalent CLI command",
+            subtitle="Live preview of the command that will be executed.",
+            icon=ft.Icons.TERMINAL,
             controls=[self.command_preview],
         )
 
+        actions = ft.ResponsiveRow(
+            spacing=10,
+            run_spacing=8,
+            controls=[
+                ft.Container(
+                    col={"xs": 12, "sm": 6, "md": 4, "lg": 3},
+                    content=self.run_button,
+                ),
+            ],
+        )
+
         return ft.Container(
-            padding=16,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=14),
             expand=True,
             content=ft.Column(
                 expand=True,
                 scroll=ft.ScrollMode.AUTO,
+                spacing=14,
                 controls=[
-                    ft.Text("Run Hyperkey", theme_style=ft.TextThemeStyle.HEADLINE_SMALL),
-                    ft.Text("Configure a processing job using the simple form below."),
+                    self._screen_title(
+                        "Run Hyperkey",
+                        "Configure a processing job. The layout automatically adapts to Windows and Android.",
+                    ),
                     input_card,
                     output_card,
                     options_card,
                     command_card,
                     self.processing_bar,
                     self.form_status,
-                    self.run_button,
-                    ft.Container(height=12),
+                    actions,
+                    ft.Container(height=18),
                 ],
             ),
         )
 
     def _cli_screen(self) -> ft.Control:
+        cli_card = self._section_panel(
+            "CLI input",
+            subtitle="Paste Hyperkey arguments or a complete python hyperkey.py command.",
+            icon=ft.Icons.TERMINAL,
+            controls=[
+                self.cli_field,
+                ft.Text(
+                    "Example: metadata.csv -r raw_data -o sydneyAPPN "
+                    "-l species_locations.csv --outlier-analysis",
+                    theme_style=ft.TextThemeStyle.BODY_SMALL,
+                    selectable=True,
+                ),
+            ],
+        )
+
         return ft.Container(
-            padding=16,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=14),
             expand=True,
             content=ft.Column(
                 expand=True,
                 scroll=ft.ScrollMode.AUTO,
+                spacing=14,
                 controls=[
-                    ft.Text("Advanced argument mode", theme_style=ft.TextThemeStyle.HEADLINE_SMALL),
-                    ft.Text(
-                        "Failsafe mode. Paste arguments only or a complete 'python hyperkey.py ...' command."
+                    self._screen_title(
+                        "Advanced argument mode",
+                        "Failsafe mode for technical users who prefer direct CLI control.",
                     ),
-                    section_card(
-                        "CLI input",
-                        controls=[
-                            self.cli_field,
-                            ft.Text(
-                                "Example: metadata.csv -r raw_data -o sydneyAPPN "
-                                "-l species_locations.csv --outlier-analysis",
-                                theme_style=ft.TextThemeStyle.BODY_SMALL,
-                            ),
-                        ],
-                    ),
+                    cli_card,
                     self.cli_status,
-                    self.cli_run_button,
+                    ft.ResponsiveRow(
+                        controls=[
+                            ft.Container(
+                                col={"xs": 12, "sm": 6, "md": 4},
+                                content=self.cli_run_button,
+                            )
+                        ]
+                    ),
+                    ft.Container(height=18),
                 ],
             ),
         )
@@ -405,8 +593,9 @@ class HyperkeyUI:
             content=ft.Column(
                 expand=True,
                 scroll=ft.ScrollMode.AUTO,
+                spacing=14,
                 controls=[
-                    ft.Text("Results", theme_style=ft.TextThemeStyle.HEADLINE_SMALL),
+                    self._screen_title("Results", "Run statistics and backend execution details."),
                     self.results_content,
                 ],
             ),
@@ -848,12 +1037,11 @@ class HyperkeyUI:
             content=ft.Column(
                 expand=True,
                 scroll=ft.ScrollMode.AUTO,
+                spacing=14,
                 controls=[
-                    ft.Text("Outputs", theme_style=ft.TextThemeStyle.HEADLINE_SMALL),
-                    ft.Text(
-                        "Generated files from the latest Hyperkey run. "
-                        "Tap a file to open it without closing Hyperkey.",
-                        theme_style=ft.TextThemeStyle.BODY_SMALL,
+                    self._screen_title(
+                        "Outputs",
+                        "Generated files from the latest run. Tap a file to open it without closing Hyperkey.",
                     ),
                     self.output_status,
                     self.outputs_content,
@@ -914,7 +1102,6 @@ class HyperkeyUI:
                     ],
                 )
             )
-        print(controls := self.outputs_content.controls)
         report_path = self._markdown_report_path()
 
         if report_path is None:
@@ -987,8 +1174,9 @@ class HyperkeyUI:
             expand=True,
             content=ft.Column(
                 expand=True,
+                spacing=14,
                 controls=[
-                    ft.Text("Logs", theme_style=ft.TextThemeStyle.HEADLINE_SMALL),
+                    self._screen_title("Logs", "Execution messages from the latest Hyperkey run."),
                     self.logs_field,
                 ],
             ),
@@ -1037,12 +1225,14 @@ class HyperkeyUI:
                     "Run summary",
                     controls=[
                         ft.Text(result.message),
-                        ft.TextField(
+                        self._style_input_field(ft.TextField(
                             label="Executed / prepared command",
                             read_only=True,
                             multiline=True,
+                            min_lines=4,
+                            max_lines=8,
                             value=self.service.format_command(result.arguments),
-                        ),
+                        )),
                     ],
                 ),
             ]
@@ -1140,22 +1330,47 @@ class HyperkeyUI:
         status_control.color = ft.Colors.GREEN if result.success else ft.Colors.RED
         self.logs_field.value = "\n".join(result.logs) if result.logs else result.message
 
-        # Move to Results after a valid run. Invalid input stays on the current screen.
+        # Move to Outputs after a valid run. Invalid input stays on the current screen.
         if result.success:
-            self.current_screen = 2
-            self.navigation.selected_index = 2
+            self.current_screen = 3
+            self.navigation.selected_index = 3
             self._render_screen()
         else:
             self.page.update()
 
+    def _system_is_dark(self) -> bool:
+        """Return True when the host operating system is currently using dark mode."""
+        return self.page.platform_brightness == ft.Brightness.DARK
+
+    def _apply_dark_mode(self, enabled: bool, *, refresh_preview: bool = True) -> None:
+        """
+        Apply one dark-mode state to both the Flet interface and generated
+        visualisations.
+        """
+        self.page.theme_mode = ft.ThemeMode.DARK if enabled else ft.ThemeMode.LIGHT
+        self.dark_mode_switch.value = enabled
+        self.theme_button.icon = (
+            ft.Icons.LIGHT_MODE_OUTLINED
+            if enabled
+            else ft.Icons.DARK_MODE_OUTLINED
+        )
+
+        if refresh_preview:
+            self._refresh_command_preview(None)
+        elif self._mounted:
+            self.page.update()
+
+    def _on_dark_mode_switch_change(self, e) -> None:
+        """Keep the app theme and visualisation dark-mode option synchronized."""
+        self._apply_dark_mode(bool(e.control.value))
+
+    def _on_platform_brightness_change(self, _e) -> None:
+        """Follow changes to the operating system's current appearance."""
+        self._apply_dark_mode(self._system_is_dark())
+
     def _toggle_app_theme(self, _e) -> None:
-        if self.page.theme_mode == ft.ThemeMode.DARK:
-            self.page.theme_mode = ft.ThemeMode.LIGHT
-            self.theme_button.icon = ft.Icons.DARK_MODE_OUTLINED
-        else:
-            self.page.theme_mode = ft.ThemeMode.DARK
-            self.theme_button.icon = ft.Icons.LIGHT_MODE_OUTLINED
-        self.page.update()
+        """Toggle both the application theme and generated visualisations."""
+        self._apply_dark_mode(not bool(self.dark_mode_switch.value))
 
     def _show_help(self, _e) -> None:
         help_dialog = ft.AlertDialog(
@@ -1186,12 +1401,8 @@ class HyperkeyUI:
                         "Optional destination directory for generated outputs. It is combined with Output name before being sent as -o.",
                     ),
                     help_item(
-                        "App theme",
-                        "The sun/moon button in the top-right changes only the Flet application's appearance.",
-                    ),
-                    help_item(
-                        "Dark visualisations",
-                        "Controls the colour mode of generated heatmaps, spectral graphs and reports. This is separate from the app's own theme button.",
+                        "Dark mode",
+                        "Hyperkey follows the operating system light/dark preference by default. The top-right theme button and this switch are synchronized, and the same setting is used for generated visualisations.",
                     ),
                     help_item(
                         "Outlier analysis",
