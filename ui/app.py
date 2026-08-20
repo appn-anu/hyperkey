@@ -608,7 +608,7 @@ class HyperkeyUI:
                 controls=[
                     self._screen_title(
                         "Run Hyperkey",
-                        "Configure a processing job. The layout automatically adapts to Windows and Android.",
+                        "Configure a processing job.",
                     ),
                     input_card,
                     output_card,
@@ -1522,4 +1522,7 @@ def main(page: ft.Page) -> None:
 
 
 if __name__ == "__main__":
-    ft.run(main)
+    ft.run(
+        main,
+        assets_dir="assets",
+    )   

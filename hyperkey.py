@@ -2,8 +2,8 @@
 
 # Example:
 # python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o sydneyAPPN
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o Test/sydneyAPPN
+# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/processed_data/GH7-test-wheats-positions.csv"
 # python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
 # python hyperkey.py -h
 
