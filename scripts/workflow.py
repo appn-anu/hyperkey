@@ -18,16 +18,74 @@ from pathlib import Path
 from pipeline import main as pipeline_main
 
 
-def run_pipeline(cli_arguments=None):
+# Optional developer-level overrides.
+#
+# Leave this empty to use the defaults defined in outlier_analysis.py.
+# A developer can manually override one or more settings here without adding
+# any new CLI arguments, for example:
+#
+# WORKFLOW_OUTLIER_OVERRIDES = {
+#     "sd_threshold": 2.5,
+#     "max_outliers": 30,
+#     "group_by": "Name",
+# }
+#
+# UI values, when supplied, override both these workflow overrides and the
+# defaults in outlier_analysis.py for that individual run.
+WORKFLOW_OUTLIER_OVERRIDES: dict[str, object] = {}
+
+
+def _resolve_outlier_settings(
+    ui_settings: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """
+    Resolve effective outlier settings.
+
+    Priority, highest to lowest:
+      1. Values supplied by the Flet UI for this run
+      2. WORKFLOW_OUTLIER_OVERRIDES in this file
+      3. Defaults defined in outlier_analysis.py
+    """
+    from outlier_analysis import (
+        DEFAULT_DDOF,
+        DEFAULT_GROUP_BY,
+        DEFAULT_ID_COLUMN,
+        DEFAULT_MAX_OUTLIERS,
+        DEFAULT_MIN_VALID_VALUES,
+        DEFAULT_SD_THRESHOLD,
+    )
+
+    settings: dict[str, object] = {
+        "sd_threshold": DEFAULT_SD_THRESHOLD,
+        "max_outliers": DEFAULT_MAX_OUTLIERS,
+        "id_column": DEFAULT_ID_COLUMN,
+        "group_by": DEFAULT_GROUP_BY,
+        "min_valid_values": DEFAULT_MIN_VALID_VALUES,
+        "ddof": DEFAULT_DDOF,
+    }
+
+    settings.update(WORKFLOW_OUTLIER_OVERRIDES)
+
+    if ui_settings:
+        settings.update(ui_settings)
+
+    return settings
+
+
+def run_pipeline(
+    cli_arguments=None,
+    outlier_settings: dict[str, object] | None = None,
+):
     """
     Run the complete Hyperkey workflow.
 
-    This function is the reusable entry point for both:
-      - the command-line interface, and
-      - the Flet desktop/Android UI.
+    cli_arguments:
+        Existing Hyperkey CLI-style argument list.
 
-    The extraction/merge stage remains in main(). Follow-up modules are
-    executed here so importing this module runs the same workflow as CLI use.
+    outlier_settings:
+        Optional UI-only outlier overrides. These values do not form part of
+        Hyperkey's CLI. A normal CLI run passes None and therefore uses the
+        stored workflow/outlier defaults.
     """
     result = pipeline_main(cli_arguments)
 
@@ -45,6 +103,7 @@ def run_pipeline(cli_arguments=None):
     summary_path = result["summary_path"]
 
     completed_stages = ["extract_merge"]
+    effective_outlier_settings: dict[str, object] | None = None
 
     try:
         # ---------------------------
@@ -56,7 +115,6 @@ def run_pipeline(cli_arguments=None):
         heatmap_arguments = {
             "input_path": output_csv,
             "output_name": heatmap_output_name,
-            # "output_name": None,
             "dark_mode": dark_mode
         }
 
@@ -75,8 +133,6 @@ def run_pipeline(cli_arguments=None):
         measurement_main(
             input_path=output_csv,
             output_name=spectral_graph_output_name,
-            # output_name=None,
-            # output_name="Spectral_graph",
             dark_mode=dark_mode
         )
         completed_stages.append("spectral_graph")
@@ -89,12 +145,14 @@ def run_pipeline(cli_arguments=None):
             print("\nRunning outlier_analysis.py ...")
             from outlier_analysis import main as outlier_main
 
-            # Expected outlier module contract:
-            # main(input_path=None, output_name=None, dark_mode=True)
+            effective_outlier_settings = _resolve_outlier_settings(
+                outlier_settings
+            )
+
             outlier_main(
                 input_path=output_csv,
-                output_name=outlier_output_name,
-                dark_mode=dark_mode
+                output_path=outlier_output_name,
+                **effective_outlier_settings,
             )
             completed_stages.append("outlier_analysis")
             print("outlier_analysis.py completed successfully.")
@@ -107,9 +165,7 @@ def run_pipeline(cli_arguments=None):
         print("\nRunning report.py ...")
         from report import main as report_main
 
-        # Keep the report module on the same generated-output theme setting.
         report_main(dark_mode=dark_mode)
-        # report_main()
         completed_stages.append("report")
         print("report.py completed successfully.")
 
@@ -128,6 +184,7 @@ def run_pipeline(cli_arguments=None):
             summary["pipeline_completed"] = False
             summary["completed_stages"] = completed_stages
             summary["pipeline_error"] = str(error)
+            summary["outlier_settings"] = effective_outlier_settings
 
             with Path(summary_path).open("w", encoding="utf-8") as f:
                 json.dump(summary, f, indent=4)
@@ -147,6 +204,7 @@ def run_pipeline(cli_arguments=None):
         summary["pipeline_completed"] = True
         summary["completed_stages"] = completed_stages
         summary["pipeline_error"] = None
+        summary["outlier_settings"] = effective_outlier_settings
 
         with Path(summary_path).open("w", encoding="utf-8") as f:
             json.dump(summary, f, indent=4)
@@ -155,6 +213,7 @@ def run_pipeline(cli_arguments=None):
 
     result["pipeline_completed"] = True
     result["completed_stages"] = completed_stages
+    result["outlier_settings"] = effective_outlier_settings
 
     print("\nFULL PIPELINE COMPLETED!")
     print(f"Output directory: {output_directory}")
@@ -168,4 +227,3 @@ if __name__ == "__main__":
     except Exception as error:
         print(f"\nHyperkey failed: {error}")
         raise SystemExit(1)
-

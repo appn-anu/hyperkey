@@ -3,6 +3,9 @@ scripts/__pycache__/
 .vscode/
 data/output_data/
 ui\__pycache__
+__pycache__
+build/
+.flet
 
 # Testing and coverage files
 .coverage
