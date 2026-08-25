@@ -582,7 +582,7 @@ def main(input_path=None, raw_location_path=None, output_name=None, index_name='
         dark_mode=dark_mode,
     )
 
-    adding_visuals_in_json(project_root, f"{index_name} Heatmap", "heatmap", output_image)
+    # adding_visuals_in_json(project_root, f"{index_name} Heatmap", "heatmap", output_image)
     
     print("\nDone!")
 
