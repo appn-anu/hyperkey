@@ -95,12 +95,15 @@ def run_pipeline(
     output_csv = result["output_csv"]
     heatmap_output_name = result["heatmap_output_name"]
     spectral_graph_output_name = result["spectral_graph_output_name"]
-    outlier_output_name = result["outlier_output_name"]
     output_directory = result["output_directory"]
     raw_location_path = result["raw_location_path"]
     dark_mode = result["dark_mode"]
     outlier_analysis = result["outlier_analysis"]
     summary_path = result["summary_path"]
+    report_markdown_path = result["report_markdown_output"]
+    report_html_path = result["report_html_output"]
+    report_pdf_path = result["report_pdf_output"]
+    outlier_output_name = result["outlier_output_name"]
 
     completed_stages = ["extract_merge"]
     effective_outlier_settings: dict[str, object] | None = None
@@ -168,6 +171,10 @@ def run_pipeline(
         report_main(
             dark_mode=dark_mode,
             summary_path=summary_path,
+            report_markdown_path=report_markdown_path,
+            report_html_path=report_html_path,
+            report_pdf_path=report_pdf_path,
+            outlier_output_name=outlier_output_name if outlier_analysis else None,
         )
 
         completed_stages.append("report")
@@ -177,7 +184,7 @@ def run_pipeline(
         print("\nPipeline stopped because a follow-up module failed.")
         print(f"Error: {error}")   
 
-        
+
         # Record partial completion in summary.json before bubbling the error up.
         try:
             if Path(summary_path).exists():
