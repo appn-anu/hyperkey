@@ -297,14 +297,19 @@ class HyperkeyUI:
             min_lines=4,
             max_lines=8,
         ))
+        self.copy_command_button = ft.IconButton(
+            icon=ft.Icons.CONTENT_COPY,
+            tooltip="Copy command",
+            on_click=self._copy_command,
+        )
 
         # Advanced CLI fallback. Keep this deliberately large because commands
         # can be long, especially when Android returns longer document paths.
         self.cli_field = self._style_input_field(ft.TextField(
             label="Hyperkey arguments or full command",
             hint_text=(
-                'metadata.csv -r raw_data -o result  OR  '
-                'python hyperkey.py metadata.csv -r raw_data'
+                'metadata.csv -r raw_data -n result  OR  '
+                'metadata.csv -r raw_data -o output_folder -n result'
             ),
             multiline=True,
             min_lines=8,
@@ -584,7 +589,16 @@ class HyperkeyUI:
             "Equivalent CLI command",
             subtitle="Live preview of the command that will be executed.",
             icon=ft.Icons.TERMINAL,
-            controls=[self.command_preview],
+            controls=[
+                ft.Row(
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    controls=[
+                        self.command_preview,
+                        self.copy_command_button,
+                    ],
+                )
+            ],
         )
 
         actions = ft.ResponsiveRow(
@@ -630,7 +644,8 @@ class HyperkeyUI:
             controls=[
                 self.cli_field,
                 ft.Text(
-                    "Example: metadata.csv -r raw_data -o sydneyAPPN "
+                    "Example: metadata.csv -r raw_data "
+                    "-o output_folder -n sydneyAPPN "
                     "-l species_locations.csv --outlier-analysis",
                     theme_style=ft.TextThemeStyle.BODY_SMALL,
                     selectable=True,
@@ -1342,6 +1357,25 @@ class HyperkeyUI:
         self.current_screen = e.control.selected_index
         self._render_screen()
 
+    async def _copy_command(self, _e) -> None:
+        """Copy the generated CLI command to the system clipboard."""
+        command = (self.command_preview.value or "").strip()
+
+        if not command:
+            self.form_status.value = "No command available to copy."
+            self.page.update()
+            return
+
+        try:
+            await ft.Clipboard().set(command)
+            self.form_status.value = "CLI command copied to clipboard."
+            self.form_status.color = ft.Colors.GREEN
+        except Exception as exc:
+            self.form_status.value = f"Unable to copy command: {exc}"
+            self.form_status.color = ft.Colors.RED
+
+        self.page.update()
+
     def _refresh_command_preview(self, _e) -> None:
         config = self._config_from_form()
         args = self.service.build_arguments(config)
@@ -1480,11 +1514,11 @@ class HyperkeyUI:
                     ),
                     help_item(
                         "Output name",
-                        "Optional base name. Existing Hyperkey dated naming is preserved by the backend.",
+                        "Optional output-name prefix. It is passed separately as -n/--name. Existing Hyperkey dated naming is preserved by the backend.",
                     ),
                     help_item(
                         "Output directory",
-                        "Optional destination directory for generated outputs. It is combined with Output name before being sent as -o.",
+                        "Optional destination directory for generated outputs. It is passed separately as -o/--output.",
                     ),
                     help_item(
                         "Dark mode",
