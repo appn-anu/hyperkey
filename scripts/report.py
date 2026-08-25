@@ -9,11 +9,22 @@ from fpdf import FPDF
 # report_ddmmyyyy for without custom_output_name
 # -o customOutputName_report_ddmmyyyy with custom_output_name
 
-def load_summary_json(project_root):
-    json_path = project_root / "data" / "output_data" / "summary.json"
+def load_summary_json(summary_path):
+    summary_path = Path(summary_path)
 
-    with open(json_path, "r", encoding="utf-8") as file:
+    with summary_path.open("r", encoding="utf-8") as file:
         return json.load(file)
+
+def resolve_output_path(path_value, project_root):
+    """
+    Convert a report path from summary.json into an absolute path.
+    """
+    output_path = Path(path_value)
+
+    if output_path.is_absolute():
+        return output_path
+
+    return project_root / output_path
 
 # This method parses the image data present in the summary.json and extract the image path 
 # and title. 
@@ -56,7 +67,7 @@ def get_report_filename(data, extension):
 
 # This method generates the markdown file from the data available from json file and saves it in the 
 # output_data directory
-def generate_markdown_report(data, project_root):
+def generate_markdown_report(data, report_markdown_path):
     visual_section = build_image_section(
         data,
         "visualisations",
@@ -100,18 +111,19 @@ This section includes:
 {spectral_graph}
 """
 
-    report_path = project_root / "data" / "output_data" / get_report_filename(data, "md")
+    report_path = Path(report_markdown_path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(report_path, "w", encoding="utf-8") as file:
+    with report_path.open("w", encoding="utf-8") as file:
         file.write(report_text)
 
     print(f"Markdown report saved to: {report_path}")
 
-    return report_text
+    return report_text, report_path
 
 # This method uses the markdown file to generate the html file saves it in the 
 # output_data directory 
-def generate_html_report(data, report_text, project_root, dark_mode):
+def generate_html_report(data, report_text, report_html_path, dark_mode):
     html_body = markdown.markdown(report_text, extensions=["tables"])
 
 
@@ -229,12 +241,14 @@ def generate_html_report(data, report_text, project_root, dark_mode):
 </html>
 """
 
-    html_path = project_root / "data" / "output_data" / get_report_filename(data, "html")
+    html_path = Path(report_html_path)
+    html_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(html_path, "w", encoding="utf-8") as file:
+    with html_path.open("w", encoding="utf-8") as file:
         file.write(html_text)
 
     print(f"HTML report saved to: {html_path}")
+    return html_path
 
 # This function is trying to find the correct location of an image file 
 # based on the path stored in image_path_value.
@@ -256,9 +270,11 @@ def resolve_image_path(image_path_value, project_root, output_dir):
 
 
 
-def generate_pdf_report(data, project_root):
-    output_dir = project_root / "data" / "output_data"
-    pdf_path = output_dir / get_report_filename(data, "pdf")
+def generate_pdf_report(data, project_root, report_pdf_path):
+    pdf_path = Path(report_pdf_path)
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    output_dir = pdf_path.parent
+    
     # This is fpdf2
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -391,22 +407,42 @@ def generate_pdf_report(data, project_root):
     pdf.output(str(pdf_path))
 
     print(f"PDF report saved to: {pdf_path}")
+    return pdf_path
     
 
 # This main function takes summary.json and generates all three types of reports and 
 # saves them in the output_data directory
-def main(dark_mode):
+def main(dark_mode, summary_path, report_markdown_path, report_html_path, 
+         report_pdf_path, outlier_output_name=None,):
+    
     project_root = ld.get_project_root()
+    
+    summary_path = Path(summary_path)
+    report_markdown_path = Path(report_markdown_path)
+    report_html_path = Path(report_html_path)
+    report_pdf_path = Path(report_pdf_path)
+
+    if not summary_path.exists():
+        raise FileNotFoundError(f"Summary file was not found at {summary_path.resolve()}")
+    data = load_summary_json(summary_path)
+
+    
+    report_text, markdown_path = generate_markdown_report(data=data, report_markdown_path=report_markdown_path,)
+    html_path = generate_html_report(data=data, report_text=report_text, report_html_path=report_html_path, dark_mode=dark_mode)
+    pdf_path = generate_pdf_report(data=data, project_root=project_root, report_pdf_path=report_pdf_path)
 
 
-    data = load_summary_json(project_root)
-
-    report_text = generate_markdown_report(data, project_root)
-
-    generate_html_report(data, report_text, project_root, dark_mode)
-
-    generate_pdf_report(data, project_root)
+    return {
+        "markdown": markdown_path,
+        "html": html_path,
+        "pdf": pdf_path,
+        "outlier":(Path(outlier_output_name)
+                   if outlier_output_name is not None
+                   else None),
+    }
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(
+        "Run report.py through hyperkey.py so the required filepaths can be supplied."
+    )
