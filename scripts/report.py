@@ -26,6 +26,14 @@ def resolve_output_path(path_value, project_root):
 
     return project_root / output_path
 
+
+def normalise_image_path(image_path):
+    image_path = Path(image_path)
+    if not image_path.suffix:
+        image_path = image_path.with_suffix(".png")
+    return image_path
+
+
 # This method parses the image data present in the summary.json and extract the image path 
 # and title. 
 def build_image_section(data, key, empty_message):
@@ -413,7 +421,7 @@ def generate_pdf_report(data, project_root, report_pdf_path):
 # This main function takes summary.json and generates all three types of reports and 
 # saves them in the output_data directory
 def main(dark_mode, summary_path, report_markdown_path, report_html_path, 
-         report_pdf_path, outlier_output_name=None,):
+         report_pdf_path, heatmap_output_name, spectral_graph_output_name, outlier_output_name=None,):
     
     project_root = ld.get_project_root()
     
@@ -421,12 +429,39 @@ def main(dark_mode, summary_path, report_markdown_path, report_html_path,
     report_markdown_path = Path(report_markdown_path)
     report_html_path = Path(report_html_path)
     report_pdf_path = Path(report_pdf_path)
+    heatmap_path = normalise_image_path(heatmap_output_name)
+    spectral_graph_path = normalise_image_path(spectral_graph_output_name)
+
+
 
     if not summary_path.exists():
         raise FileNotFoundError(f"Summary file was not found at {summary_path.resolve()}")
+
+    if not heatmap_path.exists():
+        raise FileNotFoundError(f"Heatmap image not found at {heatmap_path.resolve()}")
+
+    if not spectral_graph_path.exists():
+        raise FileNotFoundError(f"Spectral graph image not found at {spectral_graph_path.resolve()}")
+
+
     data = load_summary_json(summary_path)
 
-    
+    data["visualisations"] = [
+        {
+           "title": "NDVI Heatmap",
+            "type": "heatmap",
+            "path": heatmap_path.name,
+        }
+    ]
+
+    data["spectral_image"] = [
+        {
+          "title": "Spectral Graph",
+          "type": "spectral_graph",
+          "path": spectral_graph_path.name,
+        }
+    ]
+
     report_text, markdown_path = generate_markdown_report(data=data, report_markdown_path=report_markdown_path,)
     html_path = generate_html_report(data=data, report_text=report_text, report_html_path=report_html_path, dark_mode=dark_mode)
     pdf_path = generate_pdf_report(data=data, project_root=project_root, report_pdf_path=report_pdf_path)
@@ -436,6 +471,8 @@ def main(dark_mode, summary_path, report_markdown_path, report_html_path,
         "markdown": markdown_path,
         "html": html_path,
         "pdf": pdf_path,
+        "heatmap":heatmap_path,
+        "spectral_graph": spectral_graph_path,
         "outlier":(Path(outlier_output_name)
                    if outlier_output_name is not None
                    else None),

@@ -191,7 +191,7 @@ def main(input_path=None, output_name=None, dark_mode=True):
     output_image = resolve_output_path(output_name, project_root / 'data' / 'output_data', '_hyperspectral_')
     plot_all_measurements(df, output_image, dark_mode)
 
-    adding_visuals_in_json(project_root, "Hyperspectral Data", "spectral", output_image)
+    # adding_visuals_in_json(project_root, "Hyperspectral Data", "spectral", output_image)
 
 
 if __name__ == "__main__":

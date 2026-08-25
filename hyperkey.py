@@ -3,7 +3,7 @@
 # Example:
 # python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1"
 # python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -o data/TestHyperKey/sydneyAPPN
-# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -l "data/raw_location/species_locations.csv"
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -l "data/example_data/example1/positions.csv"
 # python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -d
 # python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" --outlier-analysis
 # python hyperkey.py -h
