@@ -165,14 +165,19 @@ def run_pipeline(
         print("\nRunning report.py ...")
         from report import main as report_main
 
-        report_main(dark_mode=dark_mode)
+        report_main(
+            dark_mode=dark_mode,
+            summary_path=summary_path,
+        )
+
         completed_stages.append("report")
         print("report.py completed successfully.")
 
     except Exception as error:
         print("\nPipeline stopped because a follow-up module failed.")
-        print(f"Error: {error}")
+        print(f"Error: {error}")   
 
+        
         # Record partial completion in summary.json before bubbling the error up.
         try:
             if Path(summary_path).exists():
