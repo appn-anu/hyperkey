@@ -354,12 +354,12 @@ def main(cli_arguments=None):
     outlier_output_name = output_names["outlier_output_name"]
 
     output_csv = output_directory / f"{merged_output_name}.csv"
-    heatmap_output_path = output_directory / heatmap_output_name
-    spectral_graph_output_path = output_directory / spectral_graph_output_name
+    heatmap_output_path = output_directory / f"{heatmap_output_name}.png"
+    spectral_graph_output_path = output_directory / f"{spectral_graph_output_name}.png"
     report_markdown_output_path = output_directory / f"{report_output_name}.md"
     report_html_output_path = output_directory / f"{report_output_name}.html"
     report_pdf_output_path = output_directory / f"{report_output_name}.pdf"
-    outlier_output_path = output_directory / outlier_output_name
+    outlier_output_path = output_directory / f"{outlier_output_name}.csv"
 
     raw_location_path = None
     if args.raw_location_path:
