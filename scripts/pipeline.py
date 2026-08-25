@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 
 # Example:
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o data/TestHyperKey/sydneyAPPN
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" --outlier-analysis
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1"
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" -o data\TestHyperKey\sydneyAPPN
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" -l "data\raw_location\species_locations.csv"
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" -d
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" --outlier-analysis
 # python scripts/pipeline.py -h
 
 import argparse
 import csv
 import json
 from datetime import datetime
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 
 
 # ---------------------------
@@ -26,73 +26,6 @@ def get_log_timestamp():
 def get_date_stamp():
     return datetime.now().strftime("%d%m%Y")
 
-
-def parse_output_target(output_value, default_directory):
-    """
-    Resolve the value supplied through -o/--output.
-
-    Supported forms:
-      - None
-          Use the default output directory and default dated names.
-
-      - A base name, for example: -o sydneyAPPN
-          Keep the existing naming behaviour inside the default output directory.
-
-      - A path, for example: -o "D:/Results/WheatData/sydneyAPPN"
-          Use the path's parent as the output directory and its final component
-          as the custom prefix. Existing dated output naming is preserved.
-
-    A trailing .csv extension is accepted and removed from the base name.
-    """
-    default_directory = Path(default_directory)
-
-    if output_value is None:
-        return {
-            "custom_prefix": None,
-            "output_directory": default_directory,
-            "is_path_output": False,
-            "requested_output": None
-        }
-
-    raw_value = str(output_value).strip().strip('"').strip("'")
-
-    if not raw_value:
-        raise ValueError("Output value cannot be empty.")
-
-    # A slash, backslash, drive prefix, or explicit parent directory means the
-    # user supplied a path rather than only a base filename.
-    windows_value = PureWindowsPath(raw_value)
-    posix_value = PurePosixPath(raw_value)
-    has_directory = (
-        "/" in raw_value
-        or "\\" in raw_value
-        or bool(windows_value.drive)
-        or str(posix_value.parent) not in ("", ".")
-    )
-
-    if has_directory:
-        output_path = Path(raw_value).expanduser()
-        output_directory = output_path.parent
-        base_name = output_path.name
-    else:
-        output_directory = default_directory
-        base_name = raw_value
-
-    # The value represents an output base, not a required extension.
-    if base_name.lower().endswith(".csv"):
-        base_name = base_name[:-4]
-
-    base_name = base_name.strip()
-
-    if not base_name:
-        raise ValueError("Output filename cannot be empty.")
-
-    return {
-        "custom_prefix": base_name,
-        "output_directory": output_directory,
-        "is_path_output": has_directory,
-        "requested_output": raw_value
-    }
 
 def build_output_names(custom_prefix=None):
     """Build the existing dated names for all generated outputs."""
@@ -128,30 +61,37 @@ def create_argument_parser():
             "sequentially."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=r"""
 Examples:
-  python hyperkey.py
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o sydneyAPPN
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o "D:/Results/WheatData/sydneyAPPN"
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -l data/raw_location/species_locations.csv
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -d
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data --outlier-analysis
+  py hyperkey.py
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -n sydneyAPPN
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -o "D:\Results\WheatData"
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -o "D:\Results\WheatData" -n sydneyAPPN
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -l data\raw_location\species_locations.csv
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -d
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 --outlier-analysis
 
 Output naming:
-  Without -o:
-    merged_spectral_data_DDMMYYYY.csv
-    heatmap_DDMMYYYY
-    SpectralGraph_DDMMYYYY
-    report_DDMMYYYY.md / .html / .pdf
+  Default:
+    data/output_data/merged_spectral_data_DDMMYYYY.csv
+    data/output_data/heatmap_DDMMYYYY
+    data/output_data/SpectralGraph_DDMMYYYY
+    data/output_data/report_DDMMYYYY.md / .html / .pdf
 
-  With -o sydneyAPPN:
-    sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
-    sydneyAPPN_heatmap_DDMMYYYY
-    sydneyAPPN_SpectralGraph_DDMMYYYY
-    sydneyAPPN_report_DDMMYYYY.md / .html / .pdf
+  With -n sydneyAPPN:
+    data/output_data/sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
+    data/output_data/sydneyAPPN_heatmap_DDMMYYYY
+    data/output_data/sydneyAPPN_SpectralGraph_DDMMYYYY
+    data/output_data/sydneyAPPN_report_DDMMYYYY.md / .html / .pdf
 
-  With -o "D:/Results/WheatData/sydneyAPPN":
+  With -o "D:\Results\WheatData":
+    D:/Results/WheatData/merged_spectral_data_DDMMYYYY.csv
+    D:/Results/WheatData/heatmap_DDMMYYYY
+    D:/Results/WheatData/SpectralGraph_DDMMYYYY
+    D:/Results/WheatData/report_DDMMYYYY.md / .html / .pdf
+
+  With -o "D:\Results\WheatData" -n sydneyAPPN:
     D:/Results/WheatData/sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
     D:/Results/WheatData/sydneyAPPN_heatmap_DDMMYYYY
     D:/Results/WheatData/sydneyAPPN_SpectralGraph_DDMMYYYY
@@ -186,11 +126,22 @@ Output naming:
         "--output",
         dest="output",
         default=None,
+        metavar="OUTPUT_DIRECTORY",
+        help=(
+            "Optional directory where all generated outputs will be saved. "
+            "If omitted, data/output_data is used."
+        )
+    )
+
+    parser.add_argument(
+        "-n",
+        "--name",
+        dest="name",
+        default=None,
         metavar="OUTPUT_NAME",
         help=(
-            "Optional output base name or full output path. A base name keeps "
-            "the existing dated naming behaviour. A full path places all "
-            "generated outputs in that directory."
+            "Optional prefix for generated output filenames. For example, "
+            "-n sydneyAPPN creates sydneyAPPN_merged_spectral_data_DDMMYYYY.csv."
         )
     )
 
@@ -378,15 +329,15 @@ def main(cli_arguments=None):
 
     default_dir = project_root / "data" / "output_data"
 
-    try:
-        output_target = parse_output_target(args.output, default_dir)
-    except ValueError as e:
-        print(f"Invalid output value: {e}")
-        return None
+    custom_prefix = str(args.name).strip() if args.name else None
+    if custom_prefix == "":
+        custom_prefix = None
 
-    custom_prefix = output_target["custom_prefix"]
-    output_directory = output_target["output_directory"]
-    is_path_output = output_target["is_path_output"]
+    output_directory = (
+        Path(args.output).expanduser()
+        if args.output
+        else default_dir
+    )
 
     try:
         output_directory.mkdir(parents=True, exist_ok=True)
@@ -659,9 +610,10 @@ def main(cli_arguments=None):
     }
 
     if args.output:
-        summary["requested_output"] = output_target["requested_output"]
+        summary["requested_output"] = str(output_directory)
+
+    if custom_prefix:
         summary["custom_output_name"] = custom_prefix
-        summary["output_path_mode"] = is_path_output
 
     if raw_location_path is not None:
         summary["raw_location_path"] = str(raw_location_path)
