@@ -93,8 +93,8 @@ def run_pipeline(
         raise RuntimeError("Main extraction and merge processing failed.")
 
     output_csv = result["output_csv"]
-    heatmap_output_name = result["heatmap_output_name"]
-    spectral_graph_output_name = result["spectral_graph_output_name"]
+    heatmap_output_name = result["heatmap_output_path"]
+    spectral_graph_output_name = result["spectral_graph_output_path"]
     output_directory = result["output_directory"]
     raw_location_path = result["raw_location_path"]
     dark_mode = result["dark_mode"]
@@ -103,7 +103,7 @@ def run_pipeline(
     report_markdown_path = result["report_markdown_output"]
     report_html_path = result["report_html_output"]
     report_pdf_path = result["report_pdf_output"]
-    outlier_output_name = result["outlier_output_name"]
+    outlier_output_name = result["outlier_output_path"]
 
     completed_stages = ["extract_merge"]
     effective_outlier_settings: dict[str, object] | None = None
@@ -174,6 +174,8 @@ def run_pipeline(
             report_markdown_path=report_markdown_path,
             report_html_path=report_html_path,
             report_pdf_path=report_pdf_path,
+            heatmap_output_name=heatmap_output_name,
+            spectral_graph_output_name=spectral_graph_output_name,
             outlier_output_name=outlier_output_name if outlier_analysis else None,
         )
 
