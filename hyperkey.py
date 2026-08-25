@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 # Example:
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o Test/sydneyAPPN
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/processed_data/GH7-test-wheats-positions.csv"
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1"
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -o data/TestHyperKey/sydneyAPPN
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -l "data/raw_location/species_locations.csv"
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -d
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" --outlier-analysis
 # python hyperkey.py -h
-
 """
 Public Hyperkey entrypoint.
 
