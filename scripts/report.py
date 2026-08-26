@@ -4,6 +4,7 @@ import markdown
 import load_data as ld
 from datetime import datetime
 from fpdf import FPDF
+import csv
 
 # This method loads the summary.json file that has success matrix and visual data path
 # report_ddmmyyyy for without custom_output_name
@@ -34,6 +35,60 @@ def normalise_image_path(image_path):
     return image_path
 
 
+def normalise_csv_path(csv_path):
+    csv_path = Path(csv_path)
+    if not csv_path.suffix:
+        csv_path = csv_path.with_suffix(".csv")
+    return csv_path
+
+
+def load_outlier_rows(outlier_path):
+    if outlier_path is None:
+        return []
+    outlier_path = normalise_csv_path(outlier_path)
+    if not outlier_path.exists():
+        raise FileNotFoundError(f"Outlier analysis CSV not found at {outlier_path.resolve()}")
+
+    rows = []
+
+    with outlier_path.open(
+        "r",
+        encoding="utf-8-sig",
+        newline=""
+    ) as file:
+        reader = csv.DictReader(file)
+
+        required_columns = {
+            "FileNum",
+            "Calculated_FilePath",
+            "Comments",
+        }
+
+        available_columns = set(reader.fieldnames or [])
+        missing_columns = required_columns - available_columns
+
+        if missing_columns:
+            raise ValueError(
+                "Outlier CSV is missing required column(s): "
+                + ", ".join(sorted(missing_columns))
+            )
+
+        for row in reader:
+            rows.append(
+                {
+                    "file_number": str(
+                        row.get("FileNum", "")
+                    ).strip(),
+                    "calculated_file_path": str(
+                        row.get("Calculated_FilePath", "")
+                    ).strip(),
+                    "comment": str(row.get("Comments", "")).strip(),
+                }
+            )
+
+    return rows
+
+
 # This method parses the image data present in the summary.json and extract the image path 
 # and title. 
 def build_image_section(data, key, empty_message):
@@ -56,7 +111,32 @@ def build_image_section(data, key, empty_message):
 
 
 
-from datetime import datetime
+def build_outlier_markdown_table(
+    outlier_rows,
+    analysis_requested
+):
+    if not analysis_requested:
+        return "Outlier analysis was not requested for this run."
+
+    if not outlier_rows:
+        return "No outliers were identified."
+
+    lines = [
+        "| File number | Calculated file path | Comments |",
+        "|---:|---|---|",
+    ]
+
+    for row in outlier_rows:
+        file_number = row["file_number"].replace("|", r"\|")
+        file_path = row["calculated_file_path"].replace("|", r"\|")
+        comment = row["comment"].replace("|", r"\|")
+
+        lines.append(
+            f"| {file_number} | {file_path} | {comment}"
+        )
+
+    return "\n".join(lines)
+
 
 def get_report_filename(data, extension):
     timestamp = datetime.strptime(
@@ -75,7 +155,7 @@ def get_report_filename(data, extension):
 
 # This method generates the markdown file from the data available from json file and saves it in the 
 # output_data directory
-def generate_markdown_report(data, report_markdown_path):
+def generate_markdown_report(data, report_markdown_path, outlier_rows, analysis_requested):
     visual_section = build_image_section(
         data,
         "visualisations",
@@ -87,6 +167,10 @@ def generate_markdown_report(data, report_markdown_path):
         "spectral_image",
         "No spectral graph generated yet."
     )
+
+    outlier_section = build_outlier_markdown_table(outlier_rows=outlier_rows, analysis_requested=analysis_requested)
+
+
 
     
 
@@ -117,6 +201,10 @@ This section includes:
 {visual_section}
 
 {spectral_graph}
+
+## Outlier Analysis
+
+{outlier_section}
 """
 
     report_path = Path(report_markdown_path)
@@ -278,7 +366,7 @@ def resolve_image_path(image_path_value, project_root, output_dir):
 
 
 
-def generate_pdf_report(data, project_root, report_pdf_path):
+def generate_pdf_report(data, project_root, report_pdf_path, outlier_rows, analysis_requested):
     pdf_path = Path(report_pdf_path)
     pdf_path.parent.mkdir(parents=True, exist_ok=True)
     output_dir = pdf_path.parent
@@ -412,6 +500,34 @@ def generate_pdf_report(data, project_root, report_pdf_path):
 
             pdf.ln(10)
 
+    pdf.ln(8)
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.cell(0, 10, "Outlier Analysis", new_x="LMARGIN", new_y="NEXT")
+
+    if not analysis_requested:
+        pdf.set_font("Helvetica", size=11)
+        pdf.multi_cell(0, 7, "Outlier analysis was not requested for this run.", new_x="LMARGIN", new_y="NEXT",)
+
+    elif not outlier_rows:
+        pdf.set_font("Helvetica", size=11)
+        pdf.multi_cell(0, 7, "No outliers were identified.", new_x="LMARGIN", new_y="NEXT",)
+
+    else:
+        pdf.set_font("Helvetica", "B", 10)
+
+        with pdf.table(width=170, col_widths=(1, 2, 5), line_height=7, text_align=("LEFT", "LEFT", "LEFT"), borders_layout="ALL",) as table:
+            header = table.row()
+            header.cell("File number")
+            header.cell("Calculated file path")
+            header.cell("Comments")
+
+            for outlier in outlier_rows:
+                table_row = table.row()
+                table_row.cell(outlier["file_number"])
+                table_row.cell(outlier["calculated_file_path"])
+                table_row.cell(outlier["comment"])
+
+    
     pdf.output(str(pdf_path))
 
     print(f"PDF report saved to: {pdf_path}")
@@ -443,6 +559,8 @@ def main(dark_mode, summary_path, report_markdown_path, report_html_path,
     if not spectral_graph_path.exists():
         raise FileNotFoundError(f"Spectral graph image not found at {spectral_graph_path.resolve()}")
 
+    
+
 
     data = load_summary_json(summary_path)
 
@@ -462,9 +580,18 @@ def main(dark_mode, summary_path, report_markdown_path, report_html_path,
         }
     ]
 
-    report_text, markdown_path = generate_markdown_report(data=data, report_markdown_path=report_markdown_path,)
+    analysis_requested = outlier_output_name is not None
+
+    if analysis_requested:
+        outlier_path = normalise_csv_path(outlier_output_name)
+        outlier_rows = load_outlier_rows(outlier_path=outlier_path)
+    else:
+        outlier_path = None
+        outlier_rows = []
+
+    report_text, markdown_path = generate_markdown_report(data=data, report_markdown_path=report_markdown_path, outlier_rows=outlier_rows, analysis_requested=analysis_requested)
     html_path = generate_html_report(data=data, report_text=report_text, report_html_path=report_html_path, dark_mode=dark_mode)
-    pdf_path = generate_pdf_report(data=data, project_root=project_root, report_pdf_path=report_pdf_path)
+    pdf_path = generate_pdf_report(data=data, project_root=project_root, report_pdf_path=report_pdf_path, outlier_rows=outlier_rows, analysis_requested=analysis_requested)
 
 
     return {
@@ -473,9 +600,8 @@ def main(dark_mode, summary_path, report_markdown_path, report_html_path,
         "pdf": pdf_path,
         "heatmap":heatmap_path,
         "spectral_graph": spectral_graph_path,
-        "outlier":(Path(outlier_output_name)
-                   if outlier_output_name is not None
-                   else None),
+        "outlier": outlier_path,
+        
     }
 
 
