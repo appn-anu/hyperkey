@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import mimetypes
 import os
 import re
 import tempfile
@@ -8,6 +9,12 @@ from pathlib import Path
 from uuid import uuid4
 
 import flet as ft
+import flet_permission_handler as fph
+
+try:
+    from hyperkey_file_opener import HyperkeyFileOpener
+except ImportError:
+    HyperkeyFileOpener = None
 
 from .components import browse_field, help_item, section_card, stat_card
 from .models import HyperkeyRunConfig, RunResult
@@ -339,6 +346,10 @@ class HyperkeyUI:
         self.output_status = ft.Text()
         self.url_launcher = ft.UrlLauncher()
         self.share_service = ft.Share()
+        self.android_file_opener = (
+            HyperkeyFileOpener() if HyperkeyFileOpener is not None else None
+        )
+        self.permission_handler = fph.PermissionHandler()
 
         self.logs_field = self._style_input_field(ft.TextField(
             label="Run log",
@@ -538,6 +549,168 @@ class HyperkeyUI:
             if value in {"-o", "--output"} or value.startswith("--output="):
                 return True
         return False
+
+    # ------------------------------------------------------------------
+    # Android storage permission
+    # ------------------------------------------------------------------
+    async def _android_all_files_access_granted(self) -> bool:
+        """Return True when Android has granted Hyperkey All files access."""
+        if not self._is_android():
+            return True
+
+        try:
+            status = await self.permission_handler.get_status(
+                fph.Permission.MANAGE_EXTERNAL_STORAGE
+            )
+            return status == fph.PermissionStatus.GRANTED
+        except Exception:
+            return False
+
+    async def _request_android_all_files_access(self, _e=None) -> None:
+        """
+        Send the user to Android's special All files access permission screen.
+
+        MANAGE_EXTERNAL_STORAGE is a special Android permission. The Flet
+        permission handler opens the appropriate system settings screen rather
+        than displaying a normal runtime-permission popup.
+        """
+        if not self._is_android():
+            return
+
+        try:
+            self.page.pop_dialog()
+        except Exception:
+            pass
+
+        try:
+            status = await self.permission_handler.request(
+                fph.Permission.MANAGE_EXTERNAL_STORAGE
+            )
+
+            # On Android this request can leave Hyperkey while the user toggles
+            # "Allow access to manage all files" in system settings. Re-check
+            # when control returns to the app instead of trusting the first
+            # status value alone.
+            granted = await self._android_all_files_access_granted()
+
+            if granted:
+                self.form_status.value = (
+                    "File access granted. Hyperkey can now use direct custom "
+                    "paths in shared storage."
+                )
+                self.form_status.color = ft.Colors.GREEN
+            else:
+                status_name = getattr(status, "name", "not granted")
+                self.form_status.value = (
+                    "All files access is not enabled. File/folder pickers will "
+                    "still work, but manually entered Android paths may be "
+                    f"inaccessible. Status: {status_name}."
+                )
+                self.form_status.color = ft.Colors.ORANGE
+
+        except Exception as exc:
+            self.form_status.value = f"Unable to request file access: {exc}"
+            self.form_status.color = ft.Colors.RED
+
+        self.page.update()
+
+    async def _open_android_permission_settings(self, _e=None) -> None:
+        """Open Hyperkey's Android app settings as a fallback."""
+        if not self._is_android():
+            return
+
+        try:
+            self.page.pop_dialog()
+        except Exception:
+            pass
+
+        try:
+            opened = await self.permission_handler.open_app_settings()
+            if not opened:
+                raise RuntimeError("Android app settings could not be opened.")
+        except Exception as exc:
+            self.form_status.value = f"Unable to open Android settings: {exc}"
+            self.form_status.color = ft.Colors.RED
+            self.page.update()
+
+    def _show_android_storage_permission_dialog(self) -> None:
+        """Explain All files access before sending the user to Android settings."""
+        if not self._is_android():
+            return
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Allow Hyperkey file access"),
+            content=ft.Column(
+                tight=True,
+                spacing=12,
+                controls=[
+                    ft.Text(
+                        "Hyperkey can work with files selected through Android's "
+                        "pickers without this permission."
+                    ),
+                    ft.Text(
+                        "All files access is requested so Hyperkey can also read "
+                        "and write direct custom paths that you enter manually, "
+                        "including folders in shared internal storage."
+                    ),
+                    ft.Container(
+                        padding=12,
+                        border=ft.Border.all(1, ft.Colors.GREY_700),
+                        border_radius=10,
+                        content=ft.Column(
+                            tight=True,
+                            spacing=6,
+                            controls=[
+                                ft.Text(
+                                    "Why Hyperkey needs it",
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                                ft.Text("• Read metadata CSV and spectral files from custom paths."),
+                                ft.Text("• Read raw-data folders supplied as direct paths."),
+                                ft.Text("• Save generated outputs to custom shared-storage folders."),
+                                ft.Text("• Keep direct filesystem paths usable without copying files into app cache."),
+                            ],
+                        ),
+                    ),
+                    ft.Text(
+                        "Android will open a system settings screen. Enable "
+                        "“Allow access to manage all files” for Hyperkey, then "
+                        "return to the app."
+                    ),
+                    ft.Text(
+                        "This permission does not replace Hyperkey's secure "
+                        "FileProvider-based Open action. Files handed to Excel, "
+                        "PDF viewers, Gallery, and other apps still receive only "
+                        "temporary access to the specific file being opened.",
+                        theme_style=ft.TextThemeStyle.BODY_SMALL,
+                    ),
+                ],
+            ),
+            actions=[
+                ft.TextButton("Not now", on_click=lambda _e: self.page.pop_dialog()),
+                ft.Button(
+                    content="Grant file access",
+                    icon=ft.Icons.FOLDER_OPEN,
+                    on_click=self._request_android_all_files_access,
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
+
+    async def ensure_android_storage_permission_on_startup(self) -> None:
+        """
+        On Android first launch (and later launches while permission is absent),
+        explain why Hyperkey requests All files access before opening settings.
+        """
+        if not self._is_android():
+            return
+
+        if await self._android_all_files_access_granted():
+            return
+
+        self._show_android_storage_permission_dialog()
 
     # ------------------------------------------------------------------
     # Pickers
@@ -862,21 +1035,38 @@ class HyperkeyUI:
         return None
 
     async def _open_output_path(self, path: Path) -> None:
-        """Open a generated file with a compatible external application."""
+        """Open a generated file with a compatible external application.
+
+        Android must not expose a raw file:// URI to another application.
+        Hyperkey therefore delegates Android opening to the bundled
+        HyperkeyFileOpener extension, which uses an Android FileProvider-backed
+        ACTION_VIEW intent and grants the chosen viewer temporary read access.
+        Desktop platforms continue using Flet's UrlLauncher.
+        """
         try:
             resolved = path.resolve()
 
             if not resolved.exists() or not resolved.is_file():
                 raise FileNotFoundError(f"Generated file not found: {resolved}")
 
-            await self.url_launcher.launch_url(
-                resolved.as_uri(),
-                mode=(
-                    ft.LaunchMode.EXTERNAL_NON_BROWSER_APPLICATION
-                    if self._is_android()
-                    else ft.LaunchMode.EXTERNAL_APPLICATION
-                ),
-            )
+            if self._is_android():
+                if self.android_file_opener is None:
+                    raise RuntimeError(
+                        "Android file opener extension is not installed. "
+                        "Add hyperkey-file-opener to the app dependencies and rebuild the APK."
+                    )
+
+                mime_type, _encoding = mimetypes.guess_type(str(resolved))
+                await self.android_file_opener.open_file(
+                    str(resolved),
+                    mime_type=mime_type,
+                )
+            else:
+                await self.url_launcher.launch_url(
+                    resolved.as_uri(),
+                    mode=ft.LaunchMode.EXTERNAL_APPLICATION,
+                )
+
             self.output_status.value = f"Opening: {resolved.name}"
 
         except Exception as exc:
@@ -1688,8 +1878,9 @@ class HyperkeyUI:
         self.page.show_dialog(help_dialog)
 
 
-def main(page: ft.Page) -> None:
-    HyperkeyUI(page)
+async def main(page: ft.Page) -> None:
+    ui = HyperkeyUI(page)
+    await ui.ensure_android_storage_permission_on_startup()
 
 
 if __name__ == "__main__":
