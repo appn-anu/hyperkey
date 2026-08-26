@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: hyperkey-file-opener
+Version: 0.1.0
+Summary: Flet service used by Hyperkey to open local files through Android FileProvider-backed intents.
+Requires-Python: >=3.10
+Requires-Dist: flet>=0.80.0

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import mimetypes
 import os
 import re
 import tempfile
@@ -8,6 +9,12 @@ from pathlib import Path
 from uuid import uuid4
 
 import flet as ft
+import flet_permission_handler as fph
+
+try:
+    from hyperkey_file_opener import HyperkeyFileOpener
+except ImportError:
+    HyperkeyFileOpener = None
 
 from .components import browse_field, help_item, section_card, stat_card
 from .models import HyperkeyRunConfig, RunResult
@@ -243,6 +250,7 @@ class HyperkeyUI:
         self.output_directory_field = self._style_input_field(ft.TextField(
             label="Output directory (optional)",
             hint_text="Default: Documents/Hyperkey (Windows), Downloads/Hyperkey (Android)",
+            hint_text="Default: Documents/Hyperkey (Windows), Downloads/Hyperkey (Android)",
             on_change=self._refresh_command_preview,
         ))
 
@@ -302,12 +310,19 @@ class HyperkeyUI:
             tooltip="Copy command",
             on_click=self._copy_command,
         )
+        self.copy_command_button = ft.IconButton(
+            icon=ft.Icons.CONTENT_COPY,
+            tooltip="Copy command",
+            on_click=self._copy_command,
+        )
 
         # Advanced CLI fallback. Keep this deliberately large because commands
         # can be long, especially when Android returns longer document paths.
         self.cli_field = self._style_input_field(ft.TextField(
             label="Hyperkey arguments or full command",
             hint_text=(
+                'metadata.csv -r raw_data -n result  OR  '
+                'metadata.csv -r raw_data -o output_folder -n result'
                 'metadata.csv -r raw_data -n result  OR  '
                 'metadata.csv -r raw_data -o output_folder -n result'
             ),
@@ -339,6 +354,10 @@ class HyperkeyUI:
         self.output_status = ft.Text()
         self.url_launcher = ft.UrlLauncher()
         self.share_service = ft.Share()
+        self.android_file_opener = (
+            HyperkeyFileOpener() if HyperkeyFileOpener is not None else None
+        )
+        self.permission_handler = fph.PermissionHandler()
 
         self.logs_field = self._style_input_field(ft.TextField(
             label="Run log",
@@ -540,6 +559,168 @@ class HyperkeyUI:
         return False
 
     # ------------------------------------------------------------------
+    # Android storage permission
+    # ------------------------------------------------------------------
+    async def _android_all_files_access_granted(self) -> bool:
+        """Return True when Android has granted Hyperkey All files access."""
+        if not self._is_android():
+            return True
+
+        try:
+            status = await self.permission_handler.get_status(
+                fph.Permission.MANAGE_EXTERNAL_STORAGE
+            )
+            return status == fph.PermissionStatus.GRANTED
+        except Exception:
+            return False
+
+    async def _request_android_all_files_access(self, _e=None) -> None:
+        """
+        Send the user to Android's special All files access permission screen.
+
+        MANAGE_EXTERNAL_STORAGE is a special Android permission. The Flet
+        permission handler opens the appropriate system settings screen rather
+        than displaying a normal runtime-permission popup.
+        """
+        if not self._is_android():
+            return
+
+        try:
+            self.page.pop_dialog()
+        except Exception:
+            pass
+
+        try:
+            status = await self.permission_handler.request(
+                fph.Permission.MANAGE_EXTERNAL_STORAGE
+            )
+
+            # On Android this request can leave Hyperkey while the user toggles
+            # "Allow access to manage all files" in system settings. Re-check
+            # when control returns to the app instead of trusting the first
+            # status value alone.
+            granted = await self._android_all_files_access_granted()
+
+            if granted:
+                self.form_status.value = (
+                    "File access granted. Hyperkey can now use direct custom "
+                    "paths in shared storage."
+                )
+                self.form_status.color = ft.Colors.GREEN
+            else:
+                status_name = getattr(status, "name", "not granted")
+                self.form_status.value = (
+                    "All files access is not enabled. File/folder pickers will "
+                    "still work, but manually entered Android paths may be "
+                    f"inaccessible. Status: {status_name}."
+                )
+                self.form_status.color = ft.Colors.ORANGE
+
+        except Exception as exc:
+            self.form_status.value = f"Unable to request file access: {exc}"
+            self.form_status.color = ft.Colors.RED
+
+        self.page.update()
+
+    async def _open_android_permission_settings(self, _e=None) -> None:
+        """Open Hyperkey's Android app settings as a fallback."""
+        if not self._is_android():
+            return
+
+        try:
+            self.page.pop_dialog()
+        except Exception:
+            pass
+
+        try:
+            opened = await self.permission_handler.open_app_settings()
+            if not opened:
+                raise RuntimeError("Android app settings could not be opened.")
+        except Exception as exc:
+            self.form_status.value = f"Unable to open Android settings: {exc}"
+            self.form_status.color = ft.Colors.RED
+            self.page.update()
+
+    def _show_android_storage_permission_dialog(self) -> None:
+        """Explain All files access before sending the user to Android settings."""
+        if not self._is_android():
+            return
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Allow Hyperkey file access"),
+            content=ft.Column(
+                tight=True,
+                spacing=12,
+                controls=[
+                    ft.Text(
+                        "Hyperkey can work with files selected through Android's "
+                        "pickers without this permission."
+                    ),
+                    ft.Text(
+                        "All files access is requested so Hyperkey can also read "
+                        "and write direct custom paths that you enter manually, "
+                        "including folders in shared internal storage."
+                    ),
+                    ft.Container(
+                        padding=12,
+                        border=ft.Border.all(1, ft.Colors.GREY_700),
+                        border_radius=10,
+                        content=ft.Column(
+                            tight=True,
+                            spacing=6,
+                            controls=[
+                                ft.Text(
+                                    "Why Hyperkey needs it",
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                                ft.Text("• Read metadata CSV and spectral files from custom paths."),
+                                ft.Text("• Read raw-data folders supplied as direct paths."),
+                                ft.Text("• Save generated outputs to custom shared-storage folders."),
+                                ft.Text("• Keep direct filesystem paths usable without copying files into app cache."),
+                            ],
+                        ),
+                    ),
+                    ft.Text(
+                        "Android will open a system settings screen. Enable "
+                        "“Allow access to manage all files” for Hyperkey, then "
+                        "return to the app."
+                    ),
+                    ft.Text(
+                        "This permission does not replace Hyperkey's secure "
+                        "FileProvider-based Open action. Files handed to Excel, "
+                        "PDF viewers, Gallery, and other apps still receive only "
+                        "temporary access to the specific file being opened.",
+                        theme_style=ft.TextThemeStyle.BODY_SMALL,
+                    ),
+                ],
+            ),
+            actions=[
+                ft.TextButton("Not now", on_click=lambda _e: self.page.pop_dialog()),
+                ft.Button(
+                    content="Grant file access",
+                    icon=ft.Icons.FOLDER_OPEN,
+                    on_click=self._request_android_all_files_access,
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
+
+    async def ensure_android_storage_permission_on_startup(self) -> None:
+        """
+        On Android first launch (and later launches while permission is absent),
+        explain why Hyperkey requests All files access before opening settings.
+        """
+        if not self._is_android():
+            return
+
+        if await self._android_all_files_access_granted():
+            return
+
+        self._show_android_storage_permission_dialog()
+
+    # ------------------------------------------------------------------
     # Pickers
     # ------------------------------------------------------------------
     async def _pick_metadata(self, _e) -> None:
@@ -650,6 +831,16 @@ class HyperkeyUI:
                     ],
                 )
             ],
+            controls=[
+                ft.Row(
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    controls=[
+                        self.command_preview,
+                        self.copy_command_button,
+                    ],
+                )
+            ],
         )
 
         actions = ft.ResponsiveRow(
@@ -695,6 +886,8 @@ class HyperkeyUI:
             controls=[
                 self.cli_field,
                 ft.Text(
+                    "Example: metadata.csv -r raw_data "
+                    "-o output_folder -n sydneyAPPN "
                     "Example: metadata.csv -r raw_data "
                     "-o output_folder -n sydneyAPPN "
                     "-l species_locations.csv --outlier-analysis",
@@ -862,17 +1055,13 @@ class HyperkeyUI:
         return None
 
     async def _open_output_path(self, path: Path) -> None:
-        """
-        Open/share a generated output while keeping Hyperkey running.
+        """Open a generated file with a compatible external application.
 
-        Windows and other desktop platforms hand the file URI to the operating
-        system, which opens the associated/default application.
-
-        Android uses the platform share/open sheet for the real file path.
-        This avoids relying on a raw file:// URI across Android application
-        boundaries and lets the user choose a compatible viewer such as
-        Excel/Sheets for CSV, a browser for HTML, a PDF viewer for PDF, or
-        Photos/Gallery for images.
+        Android must not expose a raw file:// URI to another application.
+        Hyperkey therefore delegates Android opening to the bundled
+        HyperkeyFileOpener extension, which uses an Android FileProvider-backed
+        ACTION_VIEW intent and grants the chosen viewer temporary read access.
+        Desktop platforms continue using Flet's UrlLauncher.
         """
         try:
             resolved = path.resolve()
@@ -881,19 +1070,24 @@ class HyperkeyUI:
                 raise FileNotFoundError(f"Generated file not found: {resolved}")
 
             if self._is_android():
-                await self.share_service.share_files(
-                    [ft.ShareFile.from_path(str(resolved))],
-                    title=f"Open {resolved.name}",
-                )
-                self.output_status.value = (
-                    f"Choose an app to open: {resolved.name}"
+                if self.android_file_opener is None:
+                    raise RuntimeError(
+                        "Android file opener extension is not installed. "
+                        "Add hyperkey-file-opener to the app dependencies and rebuild the APK."
+                    )
+
+                mime_type, _encoding = mimetypes.guess_type(str(resolved))
+                await self.android_file_opener.open_file(
+                    str(resolved),
+                    mime_type=mime_type,
                 )
             else:
                 await self.url_launcher.launch_url(
                     resolved.as_uri(),
                     mode=ft.LaunchMode.EXTERNAL_APPLICATION,
                 )
-                self.output_status.value = f"Opened: {resolved.name}"
+
+            self.output_status.value = f"Opening: {resolved.name}"
 
         except Exception as exc:
             self.output_status.value = (
@@ -902,9 +1096,33 @@ class HyperkeyUI:
 
         self.page.update()
 
+    async def _share_output_path(self, path: Path) -> None:
+        """Share a generated file using the platform share sheet."""
+        try:
+            resolved = path.resolve()
+
+            if not resolved.exists() or not resolved.is_file():
+                raise FileNotFoundError(f"Generated file not found: {resolved}")
+
+            await self.share_service.share_files(
+                [ft.ShareFile.from_path(str(resolved))],
+                title=f"Share {resolved.name}",
+            )
+            self.output_status.value = f"Sharing: {resolved.name}"
+
+        except Exception as exc:
+            self.output_status.value = (
+                f"Unable to share '{path.name}': {exc}"
+            )
+
+        self.page.update()
+
     def _output_file_card(self, label: str, path: Path) -> ft.Card:
         async def open_file(_e) -> None:
             await self._open_output_path(path)
+
+        async def share_file(_e) -> None:
+            await self._share_output_path(path)
 
         size_text = ""
         try:
@@ -923,12 +1141,52 @@ class HyperkeyUI:
             subtitle += f"\n{size_text}"
 
         return ft.Card(
-            content=ft.ListTile(
-                leading=ft.Icon(ft.Icons.INSERT_DRIVE_FILE_OUTLINED),
-                title=ft.Text(label, weight=ft.FontWeight.W_600),
-                subtitle=ft.Text(subtitle, max_lines=3),
-                trailing=ft.Icon(ft.Icons.OPEN_IN_NEW),
-                on_click=open_file,
+            content=ft.Container(
+                padding=12,
+                content=ft.Column(
+                    spacing=10,
+                    controls=[
+                        ft.Row(
+                            vertical_alignment=ft.CrossAxisAlignment.START,
+                            controls=[
+                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE_OUTLINED),
+                                ft.Column(
+                                    expand=True,
+                                    spacing=2,
+                                    controls=[
+                                        ft.Text(
+                                            label,
+                                            weight=ft.FontWeight.W_600,
+                                        ),
+                                        ft.Text(
+                                            subtitle,
+                                            max_lines=3,
+                                            size=12,
+                                            selectable=True,
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        ft.Row(
+                            alignment=ft.MainAxisAlignment.END,
+                            spacing=8,
+                            wrap=True,
+                            controls=[
+                                ft.Button(
+                                    content="Open",
+                                    icon=ft.Icons.OPEN_IN_NEW,
+                                    on_click=open_file,
+                                ),
+                                ft.OutlinedButton(
+                                    content="Share",
+                                    icon=ft.Icons.SHARE_OUTLINED,
+                                    on_click=share_file,
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
             )
         )
 
@@ -1207,7 +1465,7 @@ class HyperkeyUI:
                 controls=[
                     self._screen_title(
                         "Outputs",
-                        "Generated files from the latest run. Tap a file to open it with a compatible app without closing Hyperkey.",
+                        "Generated files from the latest run. Open them with a compatible app or share them without closing Hyperkey.",
                     ),
                     self.output_status,
                     self.outputs_content,
@@ -1320,7 +1578,7 @@ class HyperkeyUI:
             self.outputs_content.controls.append(
                 section_card(
                     "Generated files",
-                    subtitle="Tap any file to open it with a compatible application.",
+                    subtitle="Open a file with a compatible application or share it.",
                     controls=[
                         self._output_file_card(label, path)
                         for label, path in generated_files
@@ -1447,6 +1705,25 @@ class HyperkeyUI:
 
         self.page.update()
 
+    async def _copy_command(self, _e) -> None:
+        """Copy the generated CLI command to the system clipboard."""
+        command = (self.command_preview.value or "").strip()
+
+        if not command:
+            self.form_status.value = "No command available to copy."
+            self.page.update()
+            return
+
+        try:
+            await ft.Clipboard().set(command)
+            self.form_status.value = "CLI command copied to clipboard."
+            self.form_status.color = ft.Colors.GREEN
+        except Exception as exc:
+            self.form_status.value = f"Unable to copy command: {exc}"
+            self.form_status.color = ft.Colors.RED
+
+        self.page.update()
+
     def _refresh_command_preview(self, _e) -> None:
         config = self._config_from_form()
         args = self.service.build_arguments(config)
@@ -1465,6 +1742,12 @@ class HyperkeyUI:
         self.page.update()
 
         try:
+            # Default output policy:
+            #   Windows -> Documents/Hyperkey (resolved by pipeline.py)
+            #   Android -> Downloads/Hyperkey (resolved here through Flet)
+            # A user-selected output directory still overrides either default.
+            await self._ensure_form_default_output_directory()
+
             # Default output policy:
             #   Windows -> Documents/Hyperkey (resolved by pipeline.py)
             #   Android -> Downloads/Hyperkey (resolved here through Flet)
@@ -1501,6 +1784,18 @@ class HyperkeyUI:
 
         try:
             arguments = self.service.parse_cli_text(self.cli_field.value or "")
+
+            # Keep Advanced CLI mode consistent with the normal form:
+            # Android defaults to Downloads/Hyperkey only when the command
+            # does not already contain -o/--output.
+            if (
+                self._is_android()
+                and not self._arguments_have_output_directory(arguments)
+            ):
+                android_output = (
+                    await self._get_android_default_output_directory()
+                )
+                arguments.extend(["-o", str(android_output)])
 
             # Keep Advanced CLI mode consistent with the normal form:
             # Android defaults to Downloads/Hyperkey only when the command
@@ -1604,9 +1899,11 @@ class HyperkeyUI:
                     help_item(
                         "Output name",
                         "Optional output-name prefix. It is passed separately as -n/--name. Existing Hyperkey dated naming is preserved by the backend.",
+                        "Optional output-name prefix. It is passed separately as -n/--name. Existing Hyperkey dated naming is preserved by the backend.",
                     ),
                     help_item(
                         "Output directory",
+                        "Optional destination directory for generated outputs. If empty, Windows uses Documents/Hyperkey and Android uses Downloads/Hyperkey. A selected folder is passed separately as -o/--output and overrides the default.",
                         "Optional destination directory for generated outputs. If empty, Windows uses Documents/Hyperkey and Android uses Downloads/Hyperkey. A selected folder is passed separately as -o/--output and overrides the default.",
                     ),
                     help_item(
@@ -1627,7 +1924,7 @@ class HyperkeyUI:
                     ),
                     help_item(
                         "Outputs",
-                        "Shows the files generated by the latest successful run. Tap a file to open it in the default application while Hyperkey remains open. The Markdown report is also previewed directly inside the app.",
+                        "Shows the files generated by the latest successful run. Use Open to launch a compatible application or Share to send the file through Android/Windows sharing. The Markdown report is also previewed directly inside the app.",
                     ),
                     help_item(
                         "Results and Logs",
@@ -1640,8 +1937,9 @@ class HyperkeyUI:
         self.page.show_dialog(help_dialog)
 
 
-def main(page: ft.Page) -> None:
-    HyperkeyUI(page)
+async def main(page: ft.Page) -> None:
+    ui = HyperkeyUI(page)
+    await ui.ensure_android_storage_permission_on_startup()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,12 @@
+pyproject.toml
+src/flutter/hyperkey_file_opener/pubspec.yaml
+src/flutter/hyperkey_file_opener/lib/hyperkey_file_opener.dart
+src/flutter/hyperkey_file_opener/lib/src/extension.dart
+src/flutter/hyperkey_file_opener/lib/src/file_opener_service.dart
+src/hyperkey_file_opener/__init__.py
+src/hyperkey_file_opener/file_opener.py
+src/hyperkey_file_opener.egg-info/PKG-INFO
+src/hyperkey_file_opener.egg-info/SOURCES.txt
+src/hyperkey_file_opener.egg-info/dependency_links.txt
+src/hyperkey_file_opener.egg-info/requires.txt
+src/hyperkey_file_opener.egg-info/top_level.txt
