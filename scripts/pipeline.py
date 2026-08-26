@@ -11,6 +11,7 @@
 import argparse
 import csv
 import json
+import platform
 from datetime import datetime
 from pathlib import Path
 
@@ -26,6 +27,81 @@ def get_log_timestamp():
 def get_date_stamp():
     return datetime.now().strftime("%d%m%Y")
 
+
+
+def _get_windows_documents_directory():
+    """
+    Return the current Windows user's real Documents folder.
+
+    Uses the Windows Known Folder API so this also works when Documents has
+    been redirected, for example to OneDrive. Falls back to ~/Documents.
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+        from uuid import UUID
+
+        # FOLDERID_Documents:
+        # {FDD39AD0-238F-46AF-ADB4-6C85480369C7}
+        folder_id = UUID("FDD39AD0-238F-46AF-ADB4-6C85480369C7")
+
+        class GUID(ctypes.Structure):
+            _fields_ = [
+                ("Data1", wintypes.DWORD),
+                ("Data2", wintypes.WORD),
+                ("Data3", wintypes.WORD),
+                ("Data4", ctypes.c_ubyte * 8),
+            ]
+
+        guid = GUID(
+            folder_id.time_low,
+            folder_id.time_mid,
+            folder_id.time_hi_version,
+            (ctypes.c_ubyte * 8)(*folder_id.bytes[8:]),
+        )
+
+        path_ptr = ctypes.c_wchar_p()
+        result = ctypes.windll.shell32.SHGetKnownFolderPath(
+            ctypes.byref(guid),
+            0,
+            None,
+            ctypes.byref(path_ptr),
+        )
+
+        if result == 0 and path_ptr.value:
+            documents = Path(path_ptr.value)
+            ctypes.windll.ole32.CoTaskMemFree(path_ptr)
+            return documents
+
+    except Exception:
+        pass
+
+    return Path.home() / "Documents"
+
+
+def get_default_output_directory(default_output_directory=None):
+    """
+    Resolve Hyperkey's default output folder.
+
+    Priority:
+      1. Directory supplied by the caller (normally the Flet UI).
+      2. Windows: current user's real Documents/Hyperkey folder.
+      3. Other desktop/CLI platforms: ~/Documents/Hyperkey.
+
+    Android note:
+        A packaged Flet app should resolve a public/user-visible directory
+        with Flet's StoragePaths service and pass it in as
+        ``default_output_directory``. The pipeline intentionally does not
+        hard-code /storage/emulated/0/... because modern Android storage is
+        managed by the platform.
+    """
+    if default_output_directory:
+        return Path(default_output_directory).expanduser()
+
+    if platform.system().lower() == "windows":
+        return _get_windows_documents_directory() / "Hyperkey"
+
+    return Path.home() / "Documents" / "Hyperkey"
 
 def build_output_names(custom_prefix=None):
     """Build the existing dated names for all generated outputs."""
@@ -74,16 +150,16 @@ Examples:
 
 Output naming:
   Default:
-    data/output_data/merged_spectral_data_DDMMYYYY.csv
-    data/output_data/heatmap_DDMMYYYY
-    data/output_data/SpectralGraph_DDMMYYYY
-    data/output_data/report_DDMMYYYY.md / .html / .pdf
+    <Documents>/Hyperkey/merged_spectral_data_DDMMYYYY.csv
+    <Documents>/Hyperkey/heatmap_DDMMYYYY.png
+    <Documents>/Hyperkey/SpectralGraph_DDMMYYYY.png
+    <Documents>/Hyperkey/report_DDMMYYYY.md / .html / .pdf
 
   With -n sydneyAPPN:
-    data/output_data/sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
-    data/output_data/sydneyAPPN_heatmap_DDMMYYYY
-    data/output_data/sydneyAPPN_SpectralGraph_DDMMYYYY
-    data/output_data/sydneyAPPN_report_DDMMYYYY.md / .html / .pdf
+    <Documents>/Hyperkey/sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
+    <Documents>/Hyperkey/sydneyAPPN_heatmap_DDMMYYYY.png
+    <Documents>/Hyperkey/sydneyAPPN_SpectralGraph_DDMMYYYY.png
+    <Documents>/Hyperkey/sydneyAPPN_report_DDMMYYYY.md / .html / .pdf
 
   With -o "D:\Results\WheatData":
     D:/Results/WheatData/merged_spectral_data_DDMMYYYY.csv
@@ -129,7 +205,7 @@ Output naming:
         metavar="OUTPUT_DIRECTORY",
         help=(
             "Optional directory where all generated outputs will be saved. "
-            "If omitted, data/output_data is used."
+            "If omitted, Hyperkey uses its platform-appropriate default output folder."
         )
     )
 
@@ -307,7 +383,7 @@ def parse_sig_file(filepath):
 # Main Logic
 # ---------------------------
 
-def main(cli_arguments=None):
+def main(cli_arguments=None, default_output_directory=None):
     """
     Run the extraction and merge stage.
 
@@ -315,6 +391,11 @@ def main(cli_arguments=None):
         None     -> argparse reads arguments from the command line.
         list     -> argparse parses the supplied list, which is useful for tests
                     or for calling pipeline.main([...]) from another module.
+
+    default_output_directory:
+        Optional caller-supplied default output directory. This is primarily
+        used by the Flet app so Android can pass a platform-approved,
+        user-visible storage location. Explicit -o/--output still wins.
     """
     parser = create_argument_parser()
     args = parser.parse_args(cli_arguments)
@@ -327,7 +408,7 @@ def main(cli_arguments=None):
     project_root = script_dir.parent
 
 
-    default_dir = project_root / "data" / "output_data"
+    default_dir = get_default_output_directory(default_output_directory)
 
     custom_prefix = str(args.name).strip() if args.name else None
     if custom_prefix == "":
@@ -599,8 +680,8 @@ def main(cli_arguments=None):
         "missing_sig_files": skipped_missing_file,
         "output_directory": str(output_directory),
         "output_csv": str(output_csv),
-        "heatmap_output": str(heatmap_output_path)+".png",
-        "spectral_graph_output": str(spectral_graph_output_path)+".png",
+        "heatmap_output": str(heatmap_output_path),
+        "spectral_graph_output": str(spectral_graph_output_path),
         "report_markdown_output": str(report_markdown_output_path),
         "report_html_output": str(report_html_output_path),
         "report_pdf_output": str(report_pdf_output_path),

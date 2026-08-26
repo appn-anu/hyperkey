@@ -242,7 +242,7 @@ class HyperkeyUI:
         ))
         self.output_directory_field = self._style_input_field(ft.TextField(
             label="Output directory (optional)",
-            hint_text="Where generated files should be saved",
+            hint_text="Default: Documents/Hyperkey (Windows), Downloads/Hyperkey (Android)",
             on_change=self._refresh_command_preview,
         ))
 
@@ -338,6 +338,7 @@ class HyperkeyUI:
         self.outputs_content = ft.Column(spacing=12)
         self.output_status = ft.Text()
         self.url_launcher = ft.UrlLauncher()
+        self.share_service = ft.Share()
 
         self.logs_field = self._style_input_field(ft.TextField(
             label="Run log",
@@ -487,6 +488,56 @@ class HyperkeyUI:
         destination = temp_dir / f"{uuid4().hex}_{picked.name}"
         destination.write_bytes(picked.bytes)
         return str(destination)
+
+    def _is_android(self) -> bool:
+        """Return True when Hyperkey is running as an Android app."""
+        return self.page.platform == ft.PagePlatform.ANDROID
+
+    async def _get_android_default_output_directory(self) -> Path:
+        """
+        Return Hyperkey's public Android output directory.
+
+        Android uses the device Downloads directory so generated CSV, HTML,
+        PDF, PNG, JSON, and log files remain user-visible and can be handed
+        to compatible external applications.
+        """
+        downloads = await ft.StoragePaths().get_downloads_directory()
+
+        if not downloads:
+            raise RuntimeError(
+                "Android Downloads directory is unavailable on this device."
+            )
+
+        output_dir = Path(downloads) / "Hyperkey"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    async def _ensure_form_default_output_directory(self) -> None:
+        """
+        Apply the Android default only when the user has not selected a custom
+        output directory.
+
+        Windows is intentionally left blank here. pipeline.py resolves its
+        normal Windows default to the current user's Documents/Hyperkey folder.
+        """
+        if (self.output_directory_field.value or "").strip():
+            return
+
+        if not self._is_android():
+            return
+
+        output_dir = await self._get_android_default_output_directory()
+        self.output_directory_field.value = str(output_dir)
+        self._refresh_command_preview(None)
+
+    @staticmethod
+    def _arguments_have_output_directory(arguments: list[str]) -> bool:
+        """Return True when CLI arguments already contain -o/--output."""
+        for argument in arguments:
+            value = str(argument).strip()
+            if value in {"-o", "--output"} or value.startswith("--output="):
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Pickers
@@ -812,21 +863,41 @@ class HyperkeyUI:
 
     async def _open_output_path(self, path: Path) -> None:
         """
-        Open an output using the operating system while keeping Hyperkey open.
+        Open/share a generated output while keeping Hyperkey running.
 
-        Desktop opens the file in its associated application. On Android the
-        platform launcher chooses the associated viewer when available.
+        Windows and other desktop platforms hand the file URI to the operating
+        system, which opens the associated/default application.
+
+        Android uses the platform share/open sheet for the real file path.
+        This avoids relying on a raw file:// URI across Android application
+        boundaries and lets the user choose a compatible viewer such as
+        Excel/Sheets for CSV, a browser for HTML, a PDF viewer for PDF, or
+        Photos/Gallery for images.
         """
         try:
             resolved = path.resolve()
-            await self.url_launcher.launch_url(
-                resolved.as_uri(),
-                mode=ft.LaunchMode.EXTERNAL_APPLICATION,
-            )
-            self.output_status.value = f"Opened: {resolved.name}"
+
+            if not resolved.exists() or not resolved.is_file():
+                raise FileNotFoundError(f"Generated file not found: {resolved}")
+
+            if self._is_android():
+                await self.share_service.share_files(
+                    [ft.ShareFile.from_path(str(resolved))],
+                    title=f"Open {resolved.name}",
+                )
+                self.output_status.value = (
+                    f"Choose an app to open: {resolved.name}"
+                )
+            else:
+                await self.url_launcher.launch_url(
+                    resolved.as_uri(),
+                    mode=ft.LaunchMode.EXTERNAL_APPLICATION,
+                )
+                self.output_status.value = f"Opened: {resolved.name}"
+
         except Exception as exc:
             self.output_status.value = (
-                f"Unable to open '{path.name}' automatically: {exc}"
+                f"Unable to open '{path.name}': {exc}"
             )
 
         self.page.update()
@@ -1136,7 +1207,7 @@ class HyperkeyUI:
                 controls=[
                     self._screen_title(
                         "Outputs",
-                        "Generated files from the latest run. Tap a file to open it without closing Hyperkey.",
+                        "Generated files from the latest run. Tap a file to open it with a compatible app without closing Hyperkey.",
                     ),
                     self.output_status,
                     self.outputs_content,
@@ -1249,7 +1320,7 @@ class HyperkeyUI:
             self.outputs_content.controls.append(
                 section_card(
                     "Generated files",
-                    subtitle="Tap any file to open it in the default application.",
+                    subtitle="Tap any file to open it with a compatible application.",
                     controls=[
                         self._output_file_card(label, path)
                         for label, path in generated_files
@@ -1394,6 +1465,12 @@ class HyperkeyUI:
         self.page.update()
 
         try:
+            # Default output policy:
+            #   Windows -> Documents/Hyperkey (resolved by pipeline.py)
+            #   Android -> Downloads/Hyperkey (resolved here through Flet)
+            # A user-selected output directory still overrides either default.
+            await self._ensure_form_default_output_directory()
+
             config = self._config_from_form()
 
             # Hyperkey's processing stack is synchronous and report generation
@@ -1424,6 +1501,18 @@ class HyperkeyUI:
 
         try:
             arguments = self.service.parse_cli_text(self.cli_field.value or "")
+
+            # Keep Advanced CLI mode consistent with the normal form:
+            # Android defaults to Downloads/Hyperkey only when the command
+            # does not already contain -o/--output.
+            if (
+                self._is_android()
+                and not self._arguments_have_output_directory(arguments)
+            ):
+                android_output = (
+                    await self._get_android_default_output_directory()
+                )
+                arguments.extend(["-o", str(android_output)])
 
             # Keep synchronous backend libraries, including Playwright Sync API,
             # outside Flet's asyncio event loop.
@@ -1518,7 +1607,7 @@ class HyperkeyUI:
                     ),
                     help_item(
                         "Output directory",
-                        "Optional destination directory for generated outputs. It is passed separately as -o/--output.",
+                        "Optional destination directory for generated outputs. If empty, Windows uses Documents/Hyperkey and Android uses Downloads/Hyperkey. A selected folder is passed separately as -o/--output and overrides the default.",
                     ),
                     help_item(
                         "Dark mode",

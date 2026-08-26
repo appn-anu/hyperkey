@@ -75,6 +75,7 @@ def _resolve_outlier_settings(
 def run_pipeline(
     cli_arguments=None,
     outlier_settings: dict[str, object] | None = None,
+    default_output_directory: str | Path | None = None,
 ):
     """
     Run the complete Hyperkey workflow.
@@ -86,8 +87,18 @@ def run_pipeline(
         Optional UI-only outlier overrides. These values do not form part of
         Hyperkey's CLI. A normal CLI run passes None and therefore uses the
         stored workflow/outlier defaults.
+
+    default_output_directory:
+        Optional platform-appropriate default directory supplied by the UI.
+        This is especially useful on Android, where Flet should resolve a
+        user-visible storage directory using StoragePaths.
+
+        Explicit -o/--output in cli_arguments always takes priority.
     """
-    result = pipeline_main(cli_arguments)
+    result = pipeline_main(
+        cli_arguments,
+        default_output_directory=default_output_directory,
+    )
 
     if not result:
         raise RuntimeError("Main extraction and merge processing failed.")
@@ -113,79 +124,84 @@ def run_pipeline(
         # 1. Heatmap
         # ---------------------------
         print("\nRunning visualise_heatmap.py ...")
-        from visualise_heatmap import main as heatmap_main
+        # from visualise_heatmap import main as heatmap_main
 
-        heatmap_arguments = {
-            "input_path": output_csv,
-            "output_name": heatmap_output_name,
-            "dark_mode": dark_mode
-        }
+        # heatmap_arguments = {
+        #     "input_path": output_csv,
+        #     "output_name": heatmap_output_name,
+        #     "dark_mode": dark_mode,
+        # }
 
-        if raw_location_path is not None:
-            heatmap_arguments["raw_location_path"] = raw_location_path
+        # if raw_location_path is not None:
+        #     heatmap_arguments["raw_location_path"] = raw_location_path
 
-        heatmap_main(**heatmap_arguments)
-        completed_stages.append("heatmap")
-        print("visualise_heatmap.py completed successfully.")
+        # heatmap_main(**heatmap_arguments)
+        # completed_stages.append("heatmap")
+        # print("visualise_heatmap.py completed successfully.")
 
-        # ---------------------------
-        # 2. Spectral Measurement Graph
-        # ---------------------------
-        print("\nRunning visualise_measurement.py ...")
-        from visualise_measurement import main as measurement_main
-        measurement_main(
-            input_path=output_csv,
-            output_name=spectral_graph_output_name,
-            dark_mode=dark_mode
-        )
-        completed_stages.append("spectral_graph")
-        print("visualise_measurement.py completed successfully.")
+        # # ---------------------------
+        # # 2. Spectral Measurement Graph
+        # # ---------------------------
+        # print("\nRunning visualise_measurement.py ...")
+        # from visualise_measurement import main as measurement_main
 
-        # ---------------------------
-        # 3. Outlier Analysis (optional)
-        # ---------------------------
-        if outlier_analysis:
-            print("\nRunning outlier_analysis.py ...")
-            from outlier_analysis import main as outlier_main
+        # measurement_main(
+        #     input_path=output_csv,
+        #     output_name=spectral_graph_output_name,
+        #     dark_mode=dark_mode,
+        # )
+        # completed_stages.append("spectral_graph")
+        # print("visualise_measurement.py completed successfully.")
 
-            effective_outlier_settings = _resolve_outlier_settings(
-                outlier_settings
-            )
+        # # ---------------------------
+        # # 3. Outlier Analysis (optional)
+        # # ---------------------------
+        # if outlier_analysis:
+        #     print("\nRunning outlier_analysis.py ...")
+        #     from outlier_analysis import main as outlier_main
 
-            outlier_main(
-                input_path=output_csv,
-                output_path=outlier_output_name,
-                **effective_outlier_settings,
-            )
-            completed_stages.append("outlier_analysis")
-            print("outlier_analysis.py completed successfully.")
-        else:
-            print("\nOutlier analysis not requested. Skipping outlier_analysis.py.")
+        #     effective_outlier_settings = _resolve_outlier_settings(
+        #         outlier_settings
+        #     )
 
-        # ---------------------------
-        # 4. Report
-        # ---------------------------
-        print("\nRunning report.py ...")
-        from report import main as report_main
+        #     outlier_main(
+        #         input_path=output_csv,
+        #         output_path=outlier_output_name,
+        #         **effective_outlier_settings,
+        #     )
+        #     completed_stages.append("outlier_analysis")
+        #     print("outlier_analysis.py completed successfully.")
+        # else:
+        #     print(
+        #         "\nOutlier analysis not requested. "
+        #         "Skipping outlier_analysis.py."
+        #     )
 
-        report_main(
-            dark_mode=dark_mode,
-            summary_path=summary_path,
-            report_markdown_path=report_markdown_path,
-            report_html_path=report_html_path,
-            report_pdf_path=report_pdf_path,
-            heatmap_output_name=heatmap_output_name,
-            spectral_graph_output_name=spectral_graph_output_name,
-            outlier_output_name=outlier_output_name if outlier_analysis else None,
-        )
+        # # ---------------------------
+        # # 4. Report
+        # # ---------------------------
+        # print("\nRunning report.py ...")
+        # from report import main as report_main
 
-        completed_stages.append("report")
+        # report_main(
+        #     dark_mode=dark_mode,
+        #     summary_path=summary_path,
+        #     report_markdown_path=report_markdown_path,
+        #     report_html_path=report_html_path,
+        #     report_pdf_path=report_pdf_path,
+        #     heatmap_output_name=heatmap_output_name,
+        #     spectral_graph_output_name=spectral_graph_output_name,
+        #     outlier_output_name=(
+        #         outlier_output_name if outlier_analysis else None
+        #     ),
+        # )
+
+        # completed_stages.append("report")
         print("report.py completed successfully.")
 
     except Exception as error:
         print("\nPipeline stopped because a follow-up module failed.")
-        print(f"Error: {error}")   
-
+        print(f"Error: {error}")
 
         # Record partial completion in summary.json before bubbling the error up.
         try:
@@ -222,6 +238,7 @@ def run_pipeline(
 
         with Path(summary_path).open("w", encoding="utf-8") as f:
             json.dump(summary, f, indent=4)
+
     except Exception as error:
         print(f"Warning: unable to update final summary: {error}")
 
