@@ -7,6 +7,7 @@
 # python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -d
 # python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" --outlier-analysis
 # python hyperkey.py -h
+
 """
 Public Hyperkey entrypoint.
 
@@ -46,6 +47,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+import traceback
 from pathlib import Path
 
 
@@ -112,6 +114,12 @@ def run_cli(arguments: list[str]) -> int:
         result = runner(arguments)
 
     except Exception as exc:
+        print("\nHyperkey failed with the following traceback:\n")
+
+        # Print the complete traceback so the exact file and line
+        # causing the error can be identified.
+        traceback.print_exc()
+
         print(f"\nHyperkey failed: {exc}")
         return 1
 
