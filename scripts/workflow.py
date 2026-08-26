@@ -75,6 +75,7 @@ def _resolve_outlier_settings(
 def run_pipeline(
     cli_arguments=None,
     outlier_settings: dict[str, object] | None = None,
+    default_output_directory: str | Path | None = None,
 ):
     """
     Run the complete Hyperkey workflow.
@@ -86,21 +87,34 @@ def run_pipeline(
         Optional UI-only outlier overrides. These values do not form part of
         Hyperkey's CLI. A normal CLI run passes None and therefore uses the
         stored workflow/outlier defaults.
+
+    default_output_directory:
+        Optional platform-appropriate default directory supplied by the UI.
+        This is especially useful on Android, where Flet should resolve a
+        user-visible storage directory using StoragePaths.
+
+        Explicit -o/--output in cli_arguments always takes priority.
     """
-    result = pipeline_main(cli_arguments)
+    result = pipeline_main(
+        cli_arguments,
+        default_output_directory=default_output_directory,
+    )
 
     if not result:
         raise RuntimeError("Main extraction and merge processing failed.")
 
     output_csv = result["output_csv"]
-    heatmap_output_name = result["heatmap_output_name"]
-    spectral_graph_output_name = result["spectral_graph_output_name"]
-    outlier_output_name = result["outlier_output_name"]
+    heatmap_output_name = result["heatmap_output_path"]
+    spectral_graph_output_name = result["spectral_graph_output_path"]
     output_directory = result["output_directory"]
     raw_location_path = result["raw_location_path"]
     dark_mode = result["dark_mode"]
     outlier_analysis = result["outlier_analysis"]
     summary_path = result["summary_path"]
+    report_markdown_path = result["report_markdown_output"]
+    report_html_path = result["report_html_output"]
+    report_pdf_path = result["report_pdf_output"]
+    outlier_output_name = result["outlier_output_path"]
 
     completed_stages = ["extract_merge"]
     effective_outlier_settings: dict[str, object] | None = None
@@ -208,6 +222,7 @@ def run_pipeline(
 
         with Path(summary_path).open("w", encoding="utf-8") as f:
             json.dump(summary, f, indent=4)
+
     except Exception as error:
         print(f"Warning: unable to update final summary: {error}")
 

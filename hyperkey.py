@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 # Example:
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o Test/sydneyAPPN
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/processed_data/GH7-test-wheats-positions.csv"
-# python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1"
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -o data/TestHyperKey/sydneyAPPN
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -l "data/example_data/example1/positions.csv"
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -d
+# python hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" --outlier-analysis
 # python hyperkey.py -h
 
 """
@@ -46,6 +47,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+import traceback
 from pathlib import Path
 
 
@@ -112,6 +114,12 @@ def run_cli(arguments: list[str]) -> int:
         result = runner(arguments)
 
     except Exception as exc:
+        print("\nHyperkey failed with the following traceback:\n")
+
+        # Print the complete traceback so the exact file and line
+        # causing the error can be identified.
+        traceback.print_exc()
+
         print(f"\nHyperkey failed: {exc}")
         return 1
 

@@ -78,16 +78,24 @@ class PipelineService:
 
     @staticmethod
     def build_arguments(config: HyperkeyRunConfig) -> list[str]:
-        """Translate the friendly UI form into Hyperkey CLI-style arguments."""
+        """
+        Translate the friendly UI form into Hyperkey CLI-style arguments.
+
+        Output directory and output name are intentionally kept separate:
+          -o / --output -> output directory
+          -n / --name   -> optional output-name prefix
+        """
         args: list[str] = []
         args.extend(path.strip() for path in config.metadata_files if path.strip())
 
         if config.root_folder.strip():
             args.extend(["-r", config.root_folder.strip()])
 
-        output = config.output_argument()
-        if output:
-            args.extend(["-o", output])
+        if config.output_directory.strip():
+            args.extend(["-o", config.output_directory.strip()])
+
+        if config.output_name.strip():
+            args.extend(["-n", config.output_name.strip()])
 
         if config.raw_location_path.strip():
             args.extend(["-l", config.raw_location_path.strip()])

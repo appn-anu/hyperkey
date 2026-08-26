@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 
 # Example:
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data"
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -o data/TestHyperKey/sydneyAPPN
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -l "data/raw_location/species_locations.csv"
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" -d
-# python scripts/pipeline.py data/processed_data/GH7-test-SubFolder.csv -r "data/raw_data" --outlier-analysis
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1"
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" -o data\TestHyperKey\sydneyAPPN
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" -l "data\raw_location\species_locations.csv"
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" -d
+# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" --outlier-analysis
 # python scripts/pipeline.py -h
 
 import argparse
 import csv
 import json
+import platform
 from datetime import datetime
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 
 
 # ---------------------------
@@ -27,72 +28,80 @@ def get_date_stamp():
     return datetime.now().strftime("%d%m%Y")
 
 
-def parse_output_target(output_value, default_directory):
+
+def _get_windows_documents_directory():
     """
-    Resolve the value supplied through -o/--output.
+    Return the current Windows user's real Documents folder.
 
-    Supported forms:
-      - None
-          Use the default output directory and default dated names.
-
-      - A base name, for example: -o sydneyAPPN
-          Keep the existing naming behaviour inside the default output directory.
-
-      - A path, for example: -o "D:/Results/WheatData/sydneyAPPN"
-          Use the path's parent as the output directory and its final component
-          as the custom prefix. Existing dated output naming is preserved.
-
-    A trailing .csv extension is accepted and removed from the base name.
+    Uses the Windows Known Folder API so this also works when Documents has
+    been redirected, for example to OneDrive. Falls back to ~/Documents.
     """
-    default_directory = Path(default_directory)
+    try:
+        import ctypes
+        from ctypes import wintypes
+        from uuid import UUID
 
-    if output_value is None:
-        return {
-            "custom_prefix": None,
-            "output_directory": default_directory,
-            "is_path_output": False,
-            "requested_output": None
-        }
+        # FOLDERID_Documents:
+        # {FDD39AD0-238F-46AF-ADB4-6C85480369C7}
+        folder_id = UUID("FDD39AD0-238F-46AF-ADB4-6C85480369C7")
 
-    raw_value = str(output_value).strip().strip('"').strip("'")
+        class GUID(ctypes.Structure):
+            _fields_ = [
+                ("Data1", wintypes.DWORD),
+                ("Data2", wintypes.WORD),
+                ("Data3", wintypes.WORD),
+                ("Data4", ctypes.c_ubyte * 8),
+            ]
 
-    if not raw_value:
-        raise ValueError("Output value cannot be empty.")
+        guid = GUID(
+            folder_id.time_low,
+            folder_id.time_mid,
+            folder_id.time_hi_version,
+            (ctypes.c_ubyte * 8)(*folder_id.bytes[8:]),
+        )
 
-    # A slash, backslash, drive prefix, or explicit parent directory means the
-    # user supplied a path rather than only a base filename.
-    windows_value = PureWindowsPath(raw_value)
-    posix_value = PurePosixPath(raw_value)
-    has_directory = (
-        "/" in raw_value
-        or "\\" in raw_value
-        or bool(windows_value.drive)
-        or str(posix_value.parent) not in ("", ".")
-    )
+        path_ptr = ctypes.c_wchar_p()
+        result = ctypes.windll.shell32.SHGetKnownFolderPath(
+            ctypes.byref(guid),
+            0,
+            None,
+            ctypes.byref(path_ptr),
+        )
 
-    if has_directory:
-        output_path = Path(raw_value).expanduser()
-        output_directory = output_path.parent
-        base_name = output_path.name
-    else:
-        output_directory = default_directory
-        base_name = raw_value
+        if result == 0 and path_ptr.value:
+            documents = Path(path_ptr.value)
+            ctypes.windll.ole32.CoTaskMemFree(path_ptr)
+            return documents
 
-    # The value represents an output base, not a required extension.
-    if base_name.lower().endswith(".csv"):
-        base_name = base_name[:-4]
+    except Exception:
+        pass
 
-    base_name = base_name.strip()
+    return Path.home() / "Documents"
 
-    if not base_name:
-        raise ValueError("Output filename cannot be empty.")
 
-    return {
-        "custom_prefix": base_name,
-        "output_directory": output_directory,
-        "is_path_output": has_directory,
-        "requested_output": raw_value
-    }
+def get_default_output_directory(default_output_directory=None):
+    """
+    Resolve Hyperkey's default output folder.
+
+    Priority:
+      1. Directory supplied by the caller (normally the Flet UI).
+      2. Windows: current user's real Documents/Hyperkey folder.
+      3. Other desktop/CLI platforms: ~/Documents/Hyperkey.
+
+    Android note:
+        A packaged Flet app should resolve a public/user-visible directory
+        with Flet's StoragePaths service and pass it in as
+        ``default_output_directory``. The pipeline intentionally does not
+        hard-code /storage/emulated/0/... because modern Android storage is
+        managed by the platform.
+    """
+    if default_output_directory:
+        return Path(default_output_directory).expanduser()
+
+    if platform.system().lower() == "windows":
+        return _get_windows_documents_directory() / "Hyperkey"
+
+    return Path.home() / "Documents" / "Hyperkey"
 
 def build_output_names(custom_prefix=None):
     """Build the existing dated names for all generated outputs."""
@@ -128,30 +137,37 @@ def create_argument_parser():
             "sequentially."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=r"""
 Examples:
-  python hyperkey.py
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o sydneyAPPN
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -o "D:/Results/WheatData/sydneyAPPN"
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -l data/raw_location/species_locations.csv
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data -d
-  python hyperkey.py data/processed_data/GH7-test-SubFolder.csv -r data/raw_data --outlier-analysis
+  py hyperkey.py
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -n sydneyAPPN
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -o "D:\Results\WheatData"
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -o "D:\Results\WheatData" -n sydneyAPPN
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -l data\raw_location\species_locations.csv
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 -d
+  py hyperkey.py data\example_data\example1\metadata.csv -r data\example_data\example1 --outlier-analysis
 
 Output naming:
-  Without -o:
-    merged_spectral_data_DDMMYYYY.csv
-    heatmap_DDMMYYYY
-    SpectralGraph_DDMMYYYY
-    report_DDMMYYYY.md / .html / .pdf
+  Default:
+    <Documents>/Hyperkey/merged_spectral_data_DDMMYYYY.csv
+    <Documents>/Hyperkey/heatmap_DDMMYYYY.png
+    <Documents>/Hyperkey/SpectralGraph_DDMMYYYY.png
+    <Documents>/Hyperkey/report_DDMMYYYY.md / .html / .pdf
 
-  With -o sydneyAPPN:
-    sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
-    sydneyAPPN_heatmap_DDMMYYYY
-    sydneyAPPN_SpectralGraph_DDMMYYYY
-    sydneyAPPN_report_DDMMYYYY.md / .html / .pdf
+  With -n sydneyAPPN:
+    <Documents>/Hyperkey/sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
+    <Documents>/Hyperkey/sydneyAPPN_heatmap_DDMMYYYY.png
+    <Documents>/Hyperkey/sydneyAPPN_SpectralGraph_DDMMYYYY.png
+    <Documents>/Hyperkey/sydneyAPPN_report_DDMMYYYY.md / .html / .pdf
 
-  With -o "D:/Results/WheatData/sydneyAPPN":
+  With -o "D:\Results\WheatData":
+    D:/Results/WheatData/merged_spectral_data_DDMMYYYY.csv
+    D:/Results/WheatData/heatmap_DDMMYYYY
+    D:/Results/WheatData/SpectralGraph_DDMMYYYY
+    D:/Results/WheatData/report_DDMMYYYY.md / .html / .pdf
+
+  With -o "D:\Results\WheatData" -n sydneyAPPN:
     D:/Results/WheatData/sydneyAPPN_merged_spectral_data_DDMMYYYY.csv
     D:/Results/WheatData/sydneyAPPN_heatmap_DDMMYYYY
     D:/Results/WheatData/sydneyAPPN_SpectralGraph_DDMMYYYY
@@ -186,11 +202,22 @@ Output naming:
         "--output",
         dest="output",
         default=None,
+        metavar="OUTPUT_DIRECTORY",
+        help=(
+            "Optional directory where all generated outputs will be saved. "
+            "If omitted, Hyperkey uses its platform-appropriate default output folder."
+        )
+    )
+
+    parser.add_argument(
+        "-n",
+        "--name",
+        dest="name",
+        default=None,
         metavar="OUTPUT_NAME",
         help=(
-            "Optional output base name or full output path. A base name keeps "
-            "the existing dated naming behaviour. A full path places all "
-            "generated outputs in that directory."
+            "Optional prefix for generated output filenames. For example, "
+            "-n sydneyAPPN creates sydneyAPPN_merged_spectral_data_DDMMYYYY.csv."
         )
     )
 
@@ -356,7 +383,7 @@ def parse_sig_file(filepath):
 # Main Logic
 # ---------------------------
 
-def main(cli_arguments=None):
+def main(cli_arguments=None, default_output_directory=None):
     """
     Run the extraction and merge stage.
 
@@ -364,6 +391,11 @@ def main(cli_arguments=None):
         None     -> argparse reads arguments from the command line.
         list     -> argparse parses the supplied list, which is useful for tests
                     or for calling pipeline.main([...]) from another module.
+
+    default_output_directory:
+        Optional caller-supplied default output directory. This is primarily
+        used by the Flet app so Android can pass a platform-approved,
+        user-visible storage location. Explicit -o/--output still wins.
     """
     parser = create_argument_parser()
     args = parser.parse_args(cli_arguments)
@@ -376,17 +408,17 @@ def main(cli_arguments=None):
     project_root = script_dir.parent
 
 
-    default_dir = project_root / "data" / "output_data"
+    default_dir = get_default_output_directory(default_output_directory)
 
-    try:
-        output_target = parse_output_target(args.output, default_dir)
-    except ValueError as e:
-        print(f"Invalid output value: {e}")
-        return None
+    custom_prefix = str(args.name).strip() if args.name else None
+    if custom_prefix == "":
+        custom_prefix = None
 
-    custom_prefix = output_target["custom_prefix"]
-    output_directory = output_target["output_directory"]
-    is_path_output = output_target["is_path_output"]
+    output_directory = (
+        Path(args.output).expanduser()
+        if args.output
+        else default_dir
+    )
 
     try:
         output_directory.mkdir(parents=True, exist_ok=True)
@@ -403,12 +435,12 @@ def main(cli_arguments=None):
     outlier_output_name = output_names["outlier_output_name"]
 
     output_csv = output_directory / f"{merged_output_name}.csv"
-    heatmap_output_path = output_directory / heatmap_output_name
-    spectral_graph_output_path = output_directory / spectral_graph_output_name
+    heatmap_output_path = output_directory / f"{heatmap_output_name}.png"
+    spectral_graph_output_path = output_directory / f"{spectral_graph_output_name}.png"
     report_markdown_output_path = output_directory / f"{report_output_name}.md"
     report_html_output_path = output_directory / f"{report_output_name}.html"
     report_pdf_output_path = output_directory / f"{report_output_name}.pdf"
-    outlier_output_path = output_directory / outlier_output_name
+    outlier_output_path = output_directory / f"{outlier_output_name}.csv"
 
     raw_location_path = None
     if args.raw_location_path:
@@ -648,8 +680,8 @@ def main(cli_arguments=None):
         "missing_sig_files": skipped_missing_file,
         "output_directory": str(output_directory),
         "output_csv": str(output_csv),
-        "heatmap_output": str(heatmap_output_path)+".png",
-        "spectral_graph_output": str(spectral_graph_output_path)+".png",
+        "heatmap_output": str(heatmap_output_path),
+        "spectral_graph_output": str(spectral_graph_output_path),
         "report_markdown_output": str(report_markdown_output_path),
         "report_html_output": str(report_html_output_path),
         "report_pdf_output": str(report_pdf_output_path),
@@ -659,9 +691,10 @@ def main(cli_arguments=None):
     }
 
     if args.output:
-        summary["requested_output"] = output_target["requested_output"]
+        summary["requested_output"] = str(output_directory)
+
+    if custom_prefix:
         summary["custom_output_name"] = custom_prefix
-        summary["output_path_mode"] = is_path_output
 
     if raw_location_path is not None:
         summary["raw_location_path"] = str(raw_location_path)
@@ -689,13 +722,13 @@ def main(cli_arguments=None):
     return {
         "output_csv": output_csv,
         "merged_output_name": merged_output_name,
-        "heatmap_output_name": heatmap_output_path,
-        "spectral_graph_output_name": spectral_graph_output_path,
+        "heatmap_output_path": heatmap_output_path,
+        "spectral_graph_output_path": spectral_graph_output_path,
         "report_output_name": report_output_name,
         "report_markdown_output": report_markdown_output_path,
         "report_html_output": report_html_output_path,
         "report_pdf_output": report_pdf_output_path,
-        "outlier_output_name": outlier_output_path,
+        "outlier_output_path": outlier_output_path,
         "output_directory": output_directory,
         "raw_location_path": raw_location_path,
         "dark_mode": args.dark_mode,

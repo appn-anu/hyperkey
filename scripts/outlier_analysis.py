@@ -31,7 +31,7 @@ import pandas as pd
 
 # A spectral reading is considered an outlier when its absolute
 # Z-score is greater than this threshold.
-DEFAULT_SD_THRESHOLD = 2.0
+DEFAULT_SD_THRESHOLD = 2
 
 # Maximum number of unique outlier files written to the final output.
 # Set to None if all detected outlier files should be written.
@@ -47,7 +47,7 @@ DEFAULT_GROUP_BY = None
 
 # Minimum number of valid readings required at a wavelength before
 # that wavelength is included in outlier detection.
-DEFAULT_MIN_VALID_VALUES = 10
+DEFAULT_MIN_VALID_VALUES = 2
 
 # ddof=1 calculates sample standard deviation.
 DEFAULT_DDOF = 1

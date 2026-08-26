@@ -250,6 +250,7 @@ class HyperkeyUI:
         self.output_directory_field = self._style_input_field(ft.TextField(
             label="Output directory (optional)",
             hint_text="Default: Documents/Hyperkey (Windows), Downloads/Hyperkey (Android)",
+            hint_text="Default: Documents/Hyperkey (Windows), Downloads/Hyperkey (Android)",
             on_change=self._refresh_command_preview,
         ))
 
@@ -309,12 +310,19 @@ class HyperkeyUI:
             tooltip="Copy command",
             on_click=self._copy_command,
         )
+        self.copy_command_button = ft.IconButton(
+            icon=ft.Icons.CONTENT_COPY,
+            tooltip="Copy command",
+            on_click=self._copy_command,
+        )
 
         # Advanced CLI fallback. Keep this deliberately large because commands
         # can be long, especially when Android returns longer document paths.
         self.cli_field = self._style_input_field(ft.TextField(
             label="Hyperkey arguments or full command",
             hint_text=(
+                'metadata.csv -r raw_data -n result  OR  '
+                'metadata.csv -r raw_data -o output_folder -n result'
                 'metadata.csv -r raw_data -n result  OR  '
                 'metadata.csv -r raw_data -o output_folder -n result'
             ),
@@ -823,6 +831,16 @@ class HyperkeyUI:
                     ],
                 )
             ],
+            controls=[
+                ft.Row(
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    controls=[
+                        self.command_preview,
+                        self.copy_command_button,
+                    ],
+                )
+            ],
         )
 
         actions = ft.ResponsiveRow(
@@ -868,6 +886,8 @@ class HyperkeyUI:
             controls=[
                 self.cli_field,
                 ft.Text(
+                    "Example: metadata.csv -r raw_data "
+                    "-o output_folder -n sydneyAPPN "
                     "Example: metadata.csv -r raw_data "
                     "-o output_folder -n sydneyAPPN "
                     "-l species_locations.csv --outlier-analysis",
@@ -1685,6 +1705,25 @@ class HyperkeyUI:
 
         self.page.update()
 
+    async def _copy_command(self, _e) -> None:
+        """Copy the generated CLI command to the system clipboard."""
+        command = (self.command_preview.value or "").strip()
+
+        if not command:
+            self.form_status.value = "No command available to copy."
+            self.page.update()
+            return
+
+        try:
+            await ft.Clipboard().set(command)
+            self.form_status.value = "CLI command copied to clipboard."
+            self.form_status.color = ft.Colors.GREEN
+        except Exception as exc:
+            self.form_status.value = f"Unable to copy command: {exc}"
+            self.form_status.color = ft.Colors.RED
+
+        self.page.update()
+
     def _refresh_command_preview(self, _e) -> None:
         config = self._config_from_form()
         args = self.service.build_arguments(config)
@@ -1703,6 +1742,12 @@ class HyperkeyUI:
         self.page.update()
 
         try:
+            # Default output policy:
+            #   Windows -> Documents/Hyperkey (resolved by pipeline.py)
+            #   Android -> Downloads/Hyperkey (resolved here through Flet)
+            # A user-selected output directory still overrides either default.
+            await self._ensure_form_default_output_directory()
+
             # Default output policy:
             #   Windows -> Documents/Hyperkey (resolved by pipeline.py)
             #   Android -> Downloads/Hyperkey (resolved here through Flet)
@@ -1739,6 +1784,18 @@ class HyperkeyUI:
 
         try:
             arguments = self.service.parse_cli_text(self.cli_field.value or "")
+
+            # Keep Advanced CLI mode consistent with the normal form:
+            # Android defaults to Downloads/Hyperkey only when the command
+            # does not already contain -o/--output.
+            if (
+                self._is_android()
+                and not self._arguments_have_output_directory(arguments)
+            ):
+                android_output = (
+                    await self._get_android_default_output_directory()
+                )
+                arguments.extend(["-o", str(android_output)])
 
             # Keep Advanced CLI mode consistent with the normal form:
             # Android defaults to Downloads/Hyperkey only when the command
@@ -1842,9 +1899,11 @@ class HyperkeyUI:
                     help_item(
                         "Output name",
                         "Optional output-name prefix. It is passed separately as -n/--name. Existing Hyperkey dated naming is preserved by the backend.",
+                        "Optional output-name prefix. It is passed separately as -n/--name. Existing Hyperkey dated naming is preserved by the backend.",
                     ),
                     help_item(
                         "Output directory",
+                        "Optional destination directory for generated outputs. If empty, Windows uses Documents/Hyperkey and Android uses Downloads/Hyperkey. A selected folder is passed separately as -o/--output and overrides the default.",
                         "Optional destination directory for generated outputs. If empty, Windows uses Documents/Hyperkey and Android uses Downloads/Hyperkey. A selected folder is passed separately as -o/--output and overrides the default.",
                     ),
                     help_item(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shlex
 from collections.abc import Callable
 from pathlib import Path
@@ -48,9 +47,11 @@ class PipelineService:
         if config.root_folder.strip():
             args.extend(["-r", config.root_folder.strip()])
 
-        output = config.output_argument()
-        if output:
-            args.extend(["-o", output])
+        if config.output_directory.strip():
+            args.extend(["-o", config.output_directory.strip()])
+
+        if config.output_name.strip():
+            args.extend(["-n", config.output_name.strip()])
 
         if config.raw_location_path.strip():
             args.extend(["-l", config.raw_location_path.strip()])
@@ -59,7 +60,6 @@ class PipelineService:
         if not config.dark_mode:
             args.append("-d")
 
-        # New flag to be added to the backend parser during the pipeline update.
         if config.outlier_analysis:
             args.append("--outlier-analysis")
 
@@ -138,7 +138,7 @@ class PipelineService:
                 summary=dict(backend_result),
                 logs=logs,
             )
-        except Exception as exc:  # UI boundary: show backend errors instead of crashing.
+        except Exception as exc:
             return RunResult(
                 success=False,
                 message=f"Hyperkey processing failed: {exc}",
