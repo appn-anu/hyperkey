@@ -242,7 +242,7 @@ class HyperkeyUI:
         ))
         self.output_directory_field = self._style_input_field(ft.TextField(
             label="Output directory (optional)",
-            hint_text="Where generated files should be saved",
+            hint_text="Default: Documents/Hyperkey (Windows), Downloads/Hyperkey (Android)",
             on_change=self._refresh_command_preview,
         ))
 
@@ -297,14 +297,19 @@ class HyperkeyUI:
             min_lines=4,
             max_lines=8,
         ))
+        self.copy_command_button = ft.IconButton(
+            icon=ft.Icons.CONTENT_COPY,
+            tooltip="Copy command",
+            on_click=self._copy_command,
+        )
 
         # Advanced CLI fallback. Keep this deliberately large because commands
         # can be long, especially when Android returns longer document paths.
         self.cli_field = self._style_input_field(ft.TextField(
             label="Hyperkey arguments or full command",
             hint_text=(
-                'metadata.csv -r raw_data -o result  OR  '
-                'python hyperkey.py metadata.csv -r raw_data'
+                'metadata.csv -r raw_data -n result  OR  '
+                'metadata.csv -r raw_data -o output_folder -n result'
             ),
             multiline=True,
             min_lines=8,
@@ -333,6 +338,7 @@ class HyperkeyUI:
         self.outputs_content = ft.Column(spacing=12)
         self.output_status = ft.Text()
         self.url_launcher = ft.UrlLauncher()
+        self.share_service = ft.Share()
 
         self.logs_field = self._style_input_field(ft.TextField(
             label="Run log",
@@ -483,6 +489,56 @@ class HyperkeyUI:
         destination.write_bytes(picked.bytes)
         return str(destination)
 
+    def _is_android(self) -> bool:
+        """Return True when Hyperkey is running as an Android app."""
+        return self.page.platform == ft.PagePlatform.ANDROID
+
+    async def _get_android_default_output_directory(self) -> Path:
+        """
+        Return Hyperkey's public Android output directory.
+
+        Android uses the device Downloads directory so generated CSV, HTML,
+        PDF, PNG, JSON, and log files remain user-visible and can be handed
+        to compatible external applications.
+        """
+        downloads = await ft.StoragePaths().get_downloads_directory()
+
+        if not downloads:
+            raise RuntimeError(
+                "Android Downloads directory is unavailable on this device."
+            )
+
+        output_dir = Path(downloads) / "Hyperkey"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        return output_dir
+
+    async def _ensure_form_default_output_directory(self) -> None:
+        """
+        Apply the Android default only when the user has not selected a custom
+        output directory.
+
+        Windows is intentionally left blank here. pipeline.py resolves its
+        normal Windows default to the current user's Documents/Hyperkey folder.
+        """
+        if (self.output_directory_field.value or "").strip():
+            return
+
+        if not self._is_android():
+            return
+
+        output_dir = await self._get_android_default_output_directory()
+        self.output_directory_field.value = str(output_dir)
+        self._refresh_command_preview(None)
+
+    @staticmethod
+    def _arguments_have_output_directory(arguments: list[str]) -> bool:
+        """Return True when CLI arguments already contain -o/--output."""
+        for argument in arguments:
+            value = str(argument).strip()
+            if value in {"-o", "--output"} or value.startswith("--output="):
+                return True
+        return False
+
     # ------------------------------------------------------------------
     # Pickers
     # ------------------------------------------------------------------
@@ -584,7 +640,16 @@ class HyperkeyUI:
             "Equivalent CLI command",
             subtitle="Live preview of the command that will be executed.",
             icon=ft.Icons.TERMINAL,
-            controls=[self.command_preview],
+            controls=[
+                ft.Row(
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.START,
+                    controls=[
+                        self.command_preview,
+                        self.copy_command_button,
+                    ],
+                )
+            ],
         )
 
         actions = ft.ResponsiveRow(
@@ -630,7 +695,8 @@ class HyperkeyUI:
             controls=[
                 self.cli_field,
                 ft.Text(
-                    "Example: metadata.csv -r raw_data -o sydneyAPPN "
+                    "Example: metadata.csv -r raw_data "
+                    "-o output_folder -n sydneyAPPN "
                     "-l species_locations.csv --outlier-analysis",
                     theme_style=ft.TextThemeStyle.BODY_SMALL,
                     selectable=True,
@@ -796,22 +862,47 @@ class HyperkeyUI:
         return None
 
     async def _open_output_path(self, path: Path) -> None:
-        """
-        Open an output using the operating system while keeping Hyperkey open.
-
-        Desktop opens the file in its associated application. On Android the
-        platform launcher chooses the associated viewer when available.
-        """
+        """Open a generated file with a compatible external application."""
         try:
             resolved = path.resolve()
+
+            if not resolved.exists() or not resolved.is_file():
+                raise FileNotFoundError(f"Generated file not found: {resolved}")
+
             await self.url_launcher.launch_url(
                 resolved.as_uri(),
-                mode=ft.LaunchMode.EXTERNAL_APPLICATION,
+                mode=(
+                    ft.LaunchMode.EXTERNAL_NON_BROWSER_APPLICATION
+                    if self._is_android()
+                    else ft.LaunchMode.EXTERNAL_APPLICATION
+                ),
             )
-            self.output_status.value = f"Opened: {resolved.name}"
+            self.output_status.value = f"Opening: {resolved.name}"
+
         except Exception as exc:
             self.output_status.value = (
-                f"Unable to open '{path.name}' automatically: {exc}"
+                f"Unable to open '{path.name}': {exc}"
+            )
+
+        self.page.update()
+
+    async def _share_output_path(self, path: Path) -> None:
+        """Share a generated file using the platform share sheet."""
+        try:
+            resolved = path.resolve()
+
+            if not resolved.exists() or not resolved.is_file():
+                raise FileNotFoundError(f"Generated file not found: {resolved}")
+
+            await self.share_service.share_files(
+                [ft.ShareFile.from_path(str(resolved))],
+                title=f"Share {resolved.name}",
+            )
+            self.output_status.value = f"Sharing: {resolved.name}"
+
+        except Exception as exc:
+            self.output_status.value = (
+                f"Unable to share '{path.name}': {exc}"
             )
 
         self.page.update()
@@ -819,6 +910,9 @@ class HyperkeyUI:
     def _output_file_card(self, label: str, path: Path) -> ft.Card:
         async def open_file(_e) -> None:
             await self._open_output_path(path)
+
+        async def share_file(_e) -> None:
+            await self._share_output_path(path)
 
         size_text = ""
         try:
@@ -837,12 +931,52 @@ class HyperkeyUI:
             subtitle += f"\n{size_text}"
 
         return ft.Card(
-            content=ft.ListTile(
-                leading=ft.Icon(ft.Icons.INSERT_DRIVE_FILE_OUTLINED),
-                title=ft.Text(label, weight=ft.FontWeight.W_600),
-                subtitle=ft.Text(subtitle, max_lines=3),
-                trailing=ft.Icon(ft.Icons.OPEN_IN_NEW),
-                on_click=open_file,
+            content=ft.Container(
+                padding=12,
+                content=ft.Column(
+                    spacing=10,
+                    controls=[
+                        ft.Row(
+                            vertical_alignment=ft.CrossAxisAlignment.START,
+                            controls=[
+                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE_OUTLINED),
+                                ft.Column(
+                                    expand=True,
+                                    spacing=2,
+                                    controls=[
+                                        ft.Text(
+                                            label,
+                                            weight=ft.FontWeight.W_600,
+                                        ),
+                                        ft.Text(
+                                            subtitle,
+                                            max_lines=3,
+                                            size=12,
+                                            selectable=True,
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        ft.Row(
+                            alignment=ft.MainAxisAlignment.END,
+                            spacing=8,
+                            wrap=True,
+                            controls=[
+                                ft.Button(
+                                    content="Open",
+                                    icon=ft.Icons.OPEN_IN_NEW,
+                                    on_click=open_file,
+                                ),
+                                ft.OutlinedButton(
+                                    content="Share",
+                                    icon=ft.Icons.SHARE_OUTLINED,
+                                    on_click=share_file,
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
             )
         )
 
@@ -1121,7 +1255,7 @@ class HyperkeyUI:
                 controls=[
                     self._screen_title(
                         "Outputs",
-                        "Generated files from the latest run. Tap a file to open it without closing Hyperkey.",
+                        "Generated files from the latest run. Open them with a compatible app or share them without closing Hyperkey.",
                     ),
                     self.output_status,
                     self.outputs_content,
@@ -1234,7 +1368,7 @@ class HyperkeyUI:
             self.outputs_content.controls.append(
                 section_card(
                     "Generated files",
-                    subtitle="Tap any file to open it in the default application.",
+                    subtitle="Open a file with a compatible application or share it.",
                     controls=[
                         self._output_file_card(label, path)
                         for label, path in generated_files
@@ -1342,6 +1476,25 @@ class HyperkeyUI:
         self.current_screen = e.control.selected_index
         self._render_screen()
 
+    async def _copy_command(self, _e) -> None:
+        """Copy the generated CLI command to the system clipboard."""
+        command = (self.command_preview.value or "").strip()
+
+        if not command:
+            self.form_status.value = "No command available to copy."
+            self.page.update()
+            return
+
+        try:
+            await ft.Clipboard().set(command)
+            self.form_status.value = "CLI command copied to clipboard."
+            self.form_status.color = ft.Colors.GREEN
+        except Exception as exc:
+            self.form_status.value = f"Unable to copy command: {exc}"
+            self.form_status.color = ft.Colors.RED
+
+        self.page.update()
+
     def _refresh_command_preview(self, _e) -> None:
         config = self._config_from_form()
         args = self.service.build_arguments(config)
@@ -1360,6 +1513,12 @@ class HyperkeyUI:
         self.page.update()
 
         try:
+            # Default output policy:
+            #   Windows -> Documents/Hyperkey (resolved by pipeline.py)
+            #   Android -> Downloads/Hyperkey (resolved here through Flet)
+            # A user-selected output directory still overrides either default.
+            await self._ensure_form_default_output_directory()
+
             config = self._config_from_form()
 
             # Hyperkey's processing stack is synchronous and report generation
@@ -1390,6 +1549,18 @@ class HyperkeyUI:
 
         try:
             arguments = self.service.parse_cli_text(self.cli_field.value or "")
+
+            # Keep Advanced CLI mode consistent with the normal form:
+            # Android defaults to Downloads/Hyperkey only when the command
+            # does not already contain -o/--output.
+            if (
+                self._is_android()
+                and not self._arguments_have_output_directory(arguments)
+            ):
+                android_output = (
+                    await self._get_android_default_output_directory()
+                )
+                arguments.extend(["-o", str(android_output)])
 
             # Keep synchronous backend libraries, including Playwright Sync API,
             # outside Flet's asyncio event loop.
@@ -1480,11 +1651,11 @@ class HyperkeyUI:
                     ),
                     help_item(
                         "Output name",
-                        "Optional base name. Existing Hyperkey dated naming is preserved by the backend.",
+                        "Optional output-name prefix. It is passed separately as -n/--name. Existing Hyperkey dated naming is preserved by the backend.",
                     ),
                     help_item(
                         "Output directory",
-                        "Optional destination directory for generated outputs. It is combined with Output name before being sent as -o.",
+                        "Optional destination directory for generated outputs. If empty, Windows uses Documents/Hyperkey and Android uses Downloads/Hyperkey. A selected folder is passed separately as -o/--output and overrides the default.",
                     ),
                     help_item(
                         "Dark mode",
@@ -1504,7 +1675,7 @@ class HyperkeyUI:
                     ),
                     help_item(
                         "Outputs",
-                        "Shows the files generated by the latest successful run. Tap a file to open it in the default application while Hyperkey remains open. The Markdown report is also previewed directly inside the app.",
+                        "Shows the files generated by the latest successful run. Use Open to launch a compatible application or Share to send the file through Android/Windows sharing. The Markdown report is also previewed directly inside the app.",
                     ),
                     help_item(
                         "Results and Logs",
