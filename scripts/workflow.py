@@ -124,79 +124,79 @@ def run_pipeline(
         # 1. Heatmap
         # ---------------------------
         print("\nRunning visualise_heatmap.py ...")
-        # from visualise_heatmap import main as heatmap_main
+        from visualise_heatmap import main as heatmap_main
 
-        # heatmap_arguments = {
-        #     "input_path": output_csv,
-        #     "output_name": heatmap_output_name,
-        #     "dark_mode": dark_mode,
-        # }
+        heatmap_arguments = {
+            "input_path": output_csv,
+            "output_name": heatmap_output_name,
+            "dark_mode": dark_mode,
+        }
 
-        # if raw_location_path is not None:
-        #     heatmap_arguments["raw_location_path"] = raw_location_path
+        if raw_location_path is not None:
+            heatmap_arguments["raw_location_path"] = raw_location_path
 
-        # heatmap_main(**heatmap_arguments)
-        # completed_stages.append("heatmap")
-        # print("visualise_heatmap.py completed successfully.")
+        heatmap_main(**heatmap_arguments)
+        completed_stages.append("heatmap")
+        print("visualise_heatmap.py completed successfully.")
 
-        # # ---------------------------
-        # # 2. Spectral Measurement Graph
-        # # ---------------------------
-        # print("\nRunning visualise_measurement.py ...")
-        # from visualise_measurement import main as measurement_main
+        # ---------------------------
+        # 2. Spectral Measurement Graph
+        # ---------------------------
+        print("\nRunning visualise_measurement.py ...")
+        from visualise_measurement import main as measurement_main
 
-        # measurement_main(
-        #     input_path=output_csv,
-        #     output_name=spectral_graph_output_name,
-        #     dark_mode=dark_mode,
-        # )
-        # completed_stages.append("spectral_graph")
-        # print("visualise_measurement.py completed successfully.")
+        measurement_main(
+            input_path=output_csv,
+            output_name=spectral_graph_output_name,
+            dark_mode=dark_mode,
+        )
+        completed_stages.append("spectral_graph")
+        print("visualise_measurement.py completed successfully.")
 
-        # # ---------------------------
-        # # 3. Outlier Analysis (optional)
-        # # ---------------------------
-        # if outlier_analysis:
-        #     print("\nRunning outlier_analysis.py ...")
-        #     from outlier_analysis import main as outlier_main
+        # ---------------------------
+        # 3. Outlier Analysis (optional)
+        # ---------------------------
+        if outlier_analysis:
+            print("\nRunning outlier_analysis.py ...")
+            from outlier_analysis import main as outlier_main
 
-        #     effective_outlier_settings = _resolve_outlier_settings(
-        #         outlier_settings
-        #     )
+            effective_outlier_settings = _resolve_outlier_settings(
+                outlier_settings
+            )
 
-        #     outlier_main(
-        #         input_path=output_csv,
-        #         output_path=outlier_output_name,
-        #         **effective_outlier_settings,
-        #     )
-        #     completed_stages.append("outlier_analysis")
-        #     print("outlier_analysis.py completed successfully.")
-        # else:
-        #     print(
-        #         "\nOutlier analysis not requested. "
-        #         "Skipping outlier_analysis.py."
-        #     )
+            outlier_main(
+                input_path=output_csv,
+                output_path=outlier_output_name,
+                **effective_outlier_settings,
+            )
+            completed_stages.append("outlier_analysis")
+            print("outlier_analysis.py completed successfully.")
+        else:
+            print(
+                "\nOutlier analysis not requested. "
+                "Skipping outlier_analysis.py."
+            )
 
-        # # ---------------------------
-        # # 4. Report
-        # # ---------------------------
-        # print("\nRunning report.py ...")
-        # from report import main as report_main
+        # ---------------------------
+        # 4. Report
+        # ---------------------------
+        print("\nRunning report.py ...")
+        from report import main as report_main
 
-        # report_main(
-        #     dark_mode=dark_mode,
-        #     summary_path=summary_path,
-        #     report_markdown_path=report_markdown_path,
-        #     report_html_path=report_html_path,
-        #     report_pdf_path=report_pdf_path,
-        #     heatmap_output_name=heatmap_output_name,
-        #     spectral_graph_output_name=spectral_graph_output_name,
-        #     outlier_output_name=(
-        #         outlier_output_name if outlier_analysis else None
-        #     ),
-        # )
+        report_main(
+            dark_mode=dark_mode,
+            summary_path=summary_path,
+            report_markdown_path=report_markdown_path,
+            report_html_path=report_html_path,
+            report_pdf_path=report_pdf_path,
+            heatmap_output_name=heatmap_output_name,
+            spectral_graph_output_name=spectral_graph_output_name,
+            outlier_output_name=(
+                outlier_output_name if outlier_analysis else None
+            ),
+        )
 
-        # completed_stages.append("report")
+        completed_stages.append("report")
         print("report.py completed successfully.")
 
     except Exception as error:
