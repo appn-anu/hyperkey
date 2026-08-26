@@ -1,0 +1,14 @@
+name: hyperkey_file_opener
+description: FileProvider-backed external file opener for the Hyperkey Flet app.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flet: any
+  open_filex: ^4.7.0

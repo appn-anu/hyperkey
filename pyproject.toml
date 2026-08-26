@@ -9,6 +9,8 @@ dependencies = [
     "cycler==0.12.1",
     "fonttools==4.63.0",
     "flet==0.86.5",
+    "flet-permission-handler==0.86.5",
+    "hyperkey-file-opener @ file:///D:/Masters%20of%20computing/Tech%20Launcher/hyperkey/hyperkey-file-opener",
     "greenlet==3.5.1",
     "kiwisolver==1.5.0",
     "Markdown==3.10.3",
@@ -29,3 +31,6 @@ dependencies = [
 
 [tool.flet]
 module = "hyperkey"
+
+[tool.flet.android.permission]
+"android.permission.MANAGE_EXTERNAL_STORAGE" = true
