@@ -536,52 +536,111 @@ class HyperkeyUI:
 
         return None
 
-    async def _resolve_android_output_directory(self) -> Path:
-        """
-        Resolve Android's default output directory without hardcoding storage.
+    async def _resolve_android_output_directory(self) -> Path | None:
+        """Return the remembered Android output directory, if available."""
+        return await self._get_saved_android_output_directory()
 
-        The user selects the folder once through Android's folder picker.
-        Hyperkey recommends: Internal Storage/Documents/Hyperkey/. The exact
-        platform path returned by Android is stored and reused on later runs.
-        """
-        saved = await self._get_saved_android_output_directory()
-        if saved is not None:
-            return saved
+    async def _save_android_output_directory(self, path: str) -> Path:
+        """Remember an Android output directory selected by the user."""
+        try:
+            await self.page.shared_preferences.set(self.ANDROID_OUTPUT_PREF, path)
+        except Exception as exc:
+            raise RuntimeError(f"Unable to remember Android output folder: {exc}") from exc
+        return Path(path).expanduser()
+
+    async def _pick_android_output_after_next(self, run_mode: str) -> None:
+        """Open the Android folder picker only after the instruction dialog's Next button."""
+        try:
+            self.page.pop_dialog()
+        except Exception:
+            pass
 
         path = await ft.FilePicker().get_directory_path(
             dialog_title=(
-                "Select Hyperkey output folder - recommended: "
+                "Select Hyperkey Default output folder"
+                "This folder will be used for all future runs."
+                "The default folder cannot be changed. Recommended: "
                 "Internal Storage/Documents/Hyperkey"
             )
         )
 
         if not path:
-            raise RuntimeError(
-                "Please select an Android output folder. Recommended: "
-                "Internal Storage/Documents/Hyperkey/."
-            )
+            status = self.form_status if run_mode == "form" else self.cli_status
+            status.value = "Output folder not selected. Hyperkey was not started."
+            status.color = ft.Colors.ORANGE
+            self.page.update()
+            return
 
         try:
-            await self.page.shared_preferences.set(self.ANDROID_OUTPUT_PREF, path)
+            output_dir = await self._save_android_output_directory(path)
         except Exception as exc:
-            raise RuntimeError(f"Unable to remember Android output folder: {exc}") from exc
-
-        return Path(path).expanduser()
-
-    async def _ensure_form_default_output_directory(self) -> None:
-        """Apply the platform default when no custom output directory is set."""
-        if (self.output_directory_field.value or "").strip():
+            status = self.form_status if run_mode == "form" else self.cli_status
+            status.value = str(exc)
+            status.color = ft.Colors.RED
+            self.page.update()
             return
 
-        if self._is_android():
-            output_dir = await self._resolve_android_output_directory()
+        if run_mode == "form":
             self.output_directory_field.value = str(output_dir)
             self._refresh_command_preview(None)
-            return
+            await self._execute_form_run()
+        else:
+            await self._execute_cli_run(str(output_dir))
 
-        # Windows, macOS and Linux use Documents/Hyperkey. The backend resolves
-        # the actual home directory and creates the folder when -o is omitted.
-        return
+    def _show_android_output_folder_dialog(self, run_mode: str) -> None:
+        """Explain Android output setup before the system folder picker opens."""
+        async def next_clicked(_e) -> None:
+            await self._pick_android_output_after_next(run_mode)
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Choose Hyperkey output folder"),
+            content=ft.Column(
+                tight=True,
+                spacing=12,
+                controls=[
+                    ft.Text("For Android, select the recommended standard location:"),
+                    ft.Container(
+                        padding=12,
+                        border=ft.Border.all(1, ft.Colors.GREY_700),
+                        border_radius=10,
+                        content=ft.Text(
+                            "Internal Storage/Documents/Hyperkey/",
+                            weight=ft.FontWeight.BOLD,
+                            selectable=True,
+                        ),
+                    ),
+                    ft.Text(
+                        "You only need to select this once. Hyperkey will remember "
+                        "this folder for future runs."
+                    ),
+                    ft.Text(
+                        "Press Next to open Android's folder picker.",
+                        theme_style=ft.TextThemeStyle.BODY_SMALL,
+                    ),
+                ],
+            ),
+            actions=[
+                ft.Button(
+                    content="Next",
+                    icon=ft.Icons.ARROW_FORWARD,
+                    on_click=next_clicked,
+                )
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
+        self.page.update()
+
+    async def _ensure_form_default_output_directory(self) -> None:
+        """Restore a remembered Android folder without opening a picker."""
+        if (self.output_directory_field.value or "").strip():
+            return
+        if self._is_android():
+            output_dir = await self._resolve_android_output_directory()
+            if output_dir is not None:
+                self.output_directory_field.value = str(output_dir)
+                self._refresh_command_preview(None)
 
     @staticmethod
     def _arguments_have_output_directory(arguments: list[str]) -> bool:
@@ -1779,77 +1838,63 @@ class HyperkeyUI:
             self.page.update()
 
     async def _run_form(self, _e) -> None:
+        if self._is_android() and not (self.output_directory_field.value or "").strip():
+            saved = await self._resolve_android_output_directory()
+            if saved is None:
+                self._show_android_output_folder_dialog("form")
+                return
+            self.output_directory_field.value = str(saved)
+            self._refresh_command_preview(None)
+
+        await self._execute_form_run()
+
+    async def _execute_form_run(self) -> None:
         self.processing_bar.visible = True
         self.run_button.disabled = True
         self.form_status.value = "Running Hyperkey..."
         self.page.update()
-
         try:
-            # Default output policy:
-            #   Windows/macOS/Linux -> Documents/Hyperkey (resolved by backend)
-            #   Android -> user selects a folder once; Hyperkey remembers it.
-            #               Recommended: Internal Storage/Documents/Hyperkey/
-            # A user-selected output directory overrides the platform default.
-            await self._ensure_form_default_output_directory()
-
             config = self._config_from_form()
-
-            # Hyperkey's processing stack is synchronous and report generation
-            # may use Playwright's Sync API. Run the complete backend in a worker
-            # thread so it does not execute inside Flet's asyncio event loop.
-            result = await asyncio.to_thread(
-                self.service.run_config,
-                config,
-            )
-
+            result = await asyncio.to_thread(self.service.run_config, config)
         except Exception as exc:
-            result = RunResult(
-                False,
-                f"Unable to start Hyperkey: {exc}",
-                logs=[f"ERROR: {exc}"],
-            )
-
+            result = RunResult(False, f"Unable to start Hyperkey: {exc}", logs=[f"ERROR: {exc}"])
         finally:
             self.processing_bar.visible = False
             self.run_button.disabled = False
-
         self._handle_result(result, self.form_status)
 
     async def _run_cli(self, _e) -> None:
+        try:
+            arguments = self.service.parse_cli_text(self.cli_field.value or "")
+        except Exception as exc:
+            self.cli_status.value = f"Invalid command/arguments: {exc}"
+            self.cli_status.color = ft.Colors.RED
+            self.page.update()
+            return
+
+        if self._is_android() and not self._arguments_have_output_directory(arguments):
+            saved = await self._resolve_android_output_directory()
+            if saved is None:
+                self._show_android_output_folder_dialog("cli")
+                return
+            await self._execute_cli_run(str(saved))
+            return
+
+        await self._execute_cli_run()
+
+    async def _execute_cli_run(self, android_output: str | None = None) -> None:
         self.cli_run_button.disabled = True
         self.cli_status.value = "Running Hyperkey arguments..."
         self.page.update()
-
         try:
             arguments = self.service.parse_cli_text(self.cli_field.value or "")
-
-            # Keep Advanced CLI mode consistent with the normal form.
-            # When Android CLI arguments omit -o/--output, reuse the remembered
-            # folder or ask the user to select it once.
-            if (
-                self._is_android()
-                and not self._arguments_have_output_directory(arguments)
-            ):
-                android_output = await self._resolve_android_output_directory()
-                arguments.extend(["-o", str(android_output)])
-
-            # Keep synchronous backend libraries, including Playwright Sync API,
-            # outside Flet's asyncio event loop.
-            result = await asyncio.to_thread(
-                self.service.run_arguments,
-                arguments,
-            )
-
+            if android_output and self._is_android() and not self._arguments_have_output_directory(arguments):
+                arguments.extend(["-o", android_output])
+            result = await asyncio.to_thread(self.service.run_arguments, arguments)
         except Exception as exc:
-            result = RunResult(
-                False,
-                f"Invalid command/arguments: {exc}",
-                logs=[f"ERROR: {exc}"],
-            )
-
+            result = RunResult(False, f"Invalid command/arguments: {exc}", logs=[f"ERROR: {exc}"])
         finally:
             self.cli_run_button.disabled = False
-
         self._handle_result(result, self.cli_status)
 
     def _handle_result(self, result: RunResult, status_control: ft.Text) -> None:
