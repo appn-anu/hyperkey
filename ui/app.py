@@ -613,6 +613,7 @@ class HyperkeyUI:
                     ft.Text(
                         "You only need to select this once. Hyperkey will remember "
                         "this folder for future runs."
+                        "Warning: The default folder cannot be changed later."
                     ),
                     ft.Text(
                         "Press Next to open Android's folder picker.",
