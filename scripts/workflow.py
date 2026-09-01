@@ -129,7 +129,7 @@ def run_pipeline(
         heatmap_arguments = {
             "input_path": output_csv,
             "output_name": heatmap_output_name,
-            "dark_mode": dark_mode
+            "dark_mode": dark_mode,
         }
 
         if raw_location_path is not None:
@@ -144,10 +144,11 @@ def run_pipeline(
         # ---------------------------
         print("\nRunning visualise_measurement.py ...")
         from visualise_measurement import main as measurement_main
+
         measurement_main(
             input_path=output_csv,
             output_name=spectral_graph_output_name,
-            dark_mode=dark_mode
+            dark_mode=dark_mode,
         )
         completed_stages.append("spectral_graph")
         print("visualise_measurement.py completed successfully.")
@@ -171,7 +172,10 @@ def run_pipeline(
             completed_stages.append("outlier_analysis")
             print("outlier_analysis.py completed successfully.")
         else:
-            print("\nOutlier analysis not requested. Skipping outlier_analysis.py.")
+            print(
+                "\nOutlier analysis not requested. "
+                "Skipping outlier_analysis.py."
+            )
 
         # ---------------------------
         # 4. Report
@@ -179,7 +183,19 @@ def run_pipeline(
         print("\nRunning report.py ...")
         from report import main as report_main
 
-        report_main(dark_mode=dark_mode)
+        report_main(
+            dark_mode=dark_mode,
+            summary_path=summary_path,
+            report_markdown_path=report_markdown_path,
+            report_html_path=report_html_path,
+            report_pdf_path=report_pdf_path,
+            heatmap_output_name=heatmap_output_name,
+            spectral_graph_output_name=spectral_graph_output_name,
+            outlier_output_name=(
+                outlier_output_name if outlier_analysis else None
+            ),
+        )
+
         completed_stages.append("report")
         print("report.py completed successfully.")
 
