@@ -250,7 +250,6 @@ class HyperkeyUI:
         self.output_directory_field = self._style_input_field(ft.TextField(
             label="Output directory (optional)",
             hint_text="Default: Documents/Hyperkey (Windows), Downloads/Hyperkey (Android)",
-            hint_text="Default: Documents/Hyperkey (Windows), Downloads/Hyperkey (Android)",
             on_change=self._refresh_command_preview,
         ))
 
@@ -830,17 +829,7 @@ class HyperkeyUI:
                         self.copy_command_button,
                     ],
                 )
-            ],
-            controls=[
-                ft.Row(
-                    spacing=8,
-                    vertical_alignment=ft.CrossAxisAlignment.START,
-                    controls=[
-                        self.command_preview,
-                        self.copy_command_button,
-                    ],
-                )
-            ],
+            ]
         )
 
         actions = ft.ResponsiveRow(
