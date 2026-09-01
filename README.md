@@ -2,19 +2,61 @@
 
 [![CI/CD Tests](https://github.com/appn-anu/hyperkey/actions/workflows/tests.yml/badge.svg)](https://github.com/appn-anu/hyperkey/actions/workflows/tests.yml)
 
-HyperKey is a fast leaf-level hyperspectral data review tool for creating visualisations from measurements taken with an SVC HR i series. This is a currently a CLI tool with plans to become a mobile app in the future. It takes in a folder of .sig measurements and one or multiple metadata csv files and outputs a data report to easily visualise the data.
+## Title 
+HyperKey - Fast Leaf-Level Hyperspectral Data Processing and Visualization
 
-## Basic use of HyperKey
+## Description
+HyperKey processes leaf-level hyperspectral measurements collected using
+SVC HR i-series spectroradiometers. It combines `.sig` files with experiment
+metadata and generates merged data, visualisations, outlier listings and
+reports in Markdown, HTML and PDF formats.
+It provides a command line interface and a desktop and mobile app (currently under development). 
 
-### Clone the Repository
 
-First, clone the HYPERKEY Git repository:
+## Tags and Keywords
+`hyperspectral imaging`, `leaf reflectance`, `NDVI`, `spectral analysis`,
+`outlier detection`, `SVC HR`, `plant phenotyping`, `Python`
 
-git clone <https://github.com/appn-anu/hyperkey.git>
+## License
+We used [MIT License](LICENSE) because it is simple, permissive and encourages developers and researchers to reuse the software. 
 
-Navigate to the project folder.
+## Authors and Contributors
+- Australian Plant Phenomics Network - ANU Node
+- Stakeholders: Ming Dao Chia and Supriyo Shafkat Ahmed
+- Team Members/Developers: Chikith Rishi Maddi, Vishakha Mathur, Samuel Keun
 
-### Prepare the Input Files
+## Contact
+
+## Installation and Setup
+
+### Requirements 
+- Python 3.11 or above. 
+- Git
+
+### Installations
+- git clone <https://github.com/appn-anu/hyperkey.git>
+- Navigate to the project folder. 
+- To run this project, install the required packages using the main `requirements.txt` file located in the root directory:
+
+```bash
+pip install -r requirements.txt
+```
+Verify the installation
+```bash 
+python -c "import pandas, numpy, matplotlib, markdown, spyndex, flet, fpdf; print('Dependencies loaded successfully')"
+
+```
+#### What is being installed:
+- Following are the libraries used in this project:
+* **`pandas`**: Used for data manipulation, analysis, and structured data tables.
+* **`numpy`**: Provides support for large, multi-dimensional arrays and mathematical functions.
+* **`matplotlib`**: Handles data visualization and generates plots or charts.
+* **`Markdown`**: Parses and converts markdown text into HTML or other formats.
+* **`Spyndex`**: Calculates the visual index for hyperspectral data reading. 
+* **`Flet`**: Used to build interactive, cross-platform UI applications. 
+* **`fpdf2`**: Used to generate pdf from markdown file. 
+
+## Expeced Input 
 
 The system requires two primary inputs:
 
@@ -29,26 +71,26 @@ hyperkey
 ├── data
 │   ├── example_data
 │   │   └── example .sig, metadata, and location files
-│   │
-│   ├── raw_data
-│   │   └── where to place .sig files for convenience
-│   │
-│   ├── processed_data
+|   |   └── where to place .sig files for convenience
 │   │   └── where to place metadata/location CSV files for convenience
-│   │
+│   |
 │   └── output_data
-│       └── generated outputs
-│
-└── scripts
-    └── pipeline.py
+|       └── images of ndvi heatmap and hyperspectral data
+│       └── report.md
+|       └── report.html
+│       └── report.pdf
+|       └── images of outlier data
+├── scripts
+|    └── pipeline.py
+|    └── workflow.py
+|
+├── tests 
+├── ui
+├── conftest.py
+└── hyperkey.py
+    
 ```
 
-To use the interactive command line interface, make sure to place the required files as follows:
-
-- Add the root folder containing the .sig files, or the .sig files themselves, into data/raw_data/.
-- Add the metadata sheet in CSV format into data/processed_data/.
-
-Using this structure enables easier use of the interactive command line interface.
 
 **Note:** The above folder structure is optional. The exact full file path of the metadata file, root folder, and output file can be supplied directly through command line arguments regardless of where the files are stored on the system.
 
@@ -64,10 +106,25 @@ Header description:
 - Prefix: Used for filename prefixes.
 - Subfolder: Used when files are stored inside nested folders.
 
-Notes:
+### Hyperspectral measurements
+- Format: SVC .sig
+- Source: SVC HR i-series spectroradiometer
+- Objects represented: individual leaf measurements
+- Multiple .sig files may be provided within one root directory.
+- Nested directories are supported through the Subfolder metadata field.
 
-- Subfolder can be omitted if all .sig files are located inside a single root folder.
-- If a prefix is not provided, the system assumes the default prefix HR.
+## Output generated
+Hyperkey can generate:
+- Merged spectral data: CSV metadata combined with spectral measurements. 
+- Processing summary: Its in JSON format that runs statistics, paths and completion status. 
+- Error log: txt format contains the information of missing files, invalid values and warnings. 
+- Heatmap: NDVI or selected vegetation-index visualisation.
+- Spectral graph: Reflectance curves for processed measurements. 
+- Outlier analysis: Outlier file number, comments, path and statistics. 
+- Markdown report: Portable text report. 
+- HTML report:	Styled browser report with printing support. 
+- PDF report: Shareable report generated using fpdf2. 
+
 
 ## Running the System (interactive)
 
@@ -77,145 +134,46 @@ If the terminal is opened inside the scripts directory, run:
 python pipeline.py
 ```
 This launches the command line interface (CLI).
-If the recommended folder structure is followed, the terminal will prompt the user to:
+If the recommended folder structure is followed, the terminal will prompt the user to enter the metadata csv manually (just press 0) and type path of the csv file from the example1/example2 folder. 
+The user is later prompted to enter the root folder, press 0 for entering the manually and then type the path when prompted. 
+After this, the pipeline automatically executes. You can see the generated outputs in the output_data folder. 
 
-1. Select the metadata CSV file.
-2. Select the root folder containing the .sig files.
-
-Once selected, the pipeline automatically executes.
-
-## Running the System (CLI)
-
-The system can also be executed directly using command line arguments.
-From the project root:
+The system can also start web application on desktop from the project root:
 
 ```bash
-python "HyperkeyProjectPath/scripts/pipeline.py" "HyperkeyprojectPath/data/processed_data/GH7-test-SubFolder.csv" -r "data/raw_data" -o "mergedTest.csv"
+python hyperkey.py
 ```
+Once, the UI comes up, you can select the root folder and the metadata.csv file and run hyperkey button at the bottom. This will run all the scripts in the backend and generate the visualisations and output files. 
 
 From the scripts directory:
 
 ```bash
-python pipeline.py "../data/processed_data/GH7-test-SubFolder.csv" -r "../data/raw_data" -o "mergedTest.csv"
+
 ```
 
 Using absolute / full file paths (supported irrespective of file location):
 
 ```bash
-python pipeline.py "D:/Experiments/Metadata/GH7-test.csv" -r "D:/Research/Raw_SIG_Files/" -o "D:/Results/mergedTest.csv"
+
 ```
-
-### Command Line Arguments
-
-`pipeline.py` is the main program that runs the complete HYPERKEY application.
-The supported arguments are:
 
 #### Metadata File Path
 
-The first positional argument specifies the metadata CSV file path.
-The system supports:
-
-- Relative paths
-- Absolute/full file paths
-- Multiple metadata files separated by spaces
-
-Examples:
-
-```bash
-python pipeline.py "../data/processed_data/test.csv"
-```
-```bash
-python pipeline.py "D:/Metadata/experiment1.csv"
-```
-```bash
-python pipeline.py "experiment1.csv" "experiment2.csv"
-```
-
-#### -r / --root
-
-Used to specify the root folder path containing:
-
-- .sig files directly, or
-- Subfolders containing .sig files.
-
-Supports both relative and full file paths.
-Examples:
-
-```bash
--r "../data/raw_data"
-```
-```bash
--r "D:/Research/Raw_SIG_Files/"
-```
-#### -o / --output (Optional)
-
-Used to specify the required output merged CSV filename.
-Example:
-```bash
--o "mergedTest.csv"
-```
-
-This is useful when scientists want to clearly label or distinguish outputs from specific experiments.
-The argument supports:
-
-- Filename only (mergedTest.csv)
-→ Saved inside the project's output directory.
-- Relative file path
-- Complete / absolute output file path
-
-Examples:
-```bash
--o "mergedTest.csv"
-```
-```bash
--o "../results/mergedTest.csv"
-```
-```bash
--o "D:/Results/Experiment_12_Output.csv"
-```
-
 ## Input formatting
 
-Example raw .sig file data can be found in [raw_data](data/raw_data/2026-03-24-S1-Techlauncher/)
+Example raw .sig file data can be found in [sig_files](data/example_data/example1/sig_files)
 
-Example metadata csv file can be found in [processed_data](data\processed_data\GH7-test-SubFolder.csv)
+Example metadata csv file can be found in [example1](data/example_data/example1/metadata.csv)
 
-Example Location file can also be found in [processed_data](data\processed_data\GH7-test-wheats-positions.csv)
+Example Location file can also be found in [example1](data/example_data/example1/positions.csv)
 
-## Installation Instructions
 
-- Make sure you have Python 3.11+ installed. 
 
-### Install Dependencies
 
-- To run this project, install the required packages using the main `requirements.txt` file located in the root directory:
 
-```bash
-pip install -r requirements.txt
-```
-#### What is being installed:
-- Following are the libraries used in this project:
-* **`pandas`**: Used for data manipulation, analysis, and structured data tables.
-* **`numpy`**: Provides support for large, multi-dimensional arrays and mathematical functions.
-* **`matplotlib`**: Handles data visualization and generates plots or charts.
-* **`Markdown`**: Parses and converts markdown text into HTML or other formats.
-* **`Playwright`**: Used to convert html into pdf.  
-* **`Chromium`**: Acts as an engine and applies all the styling to pdf.
-* **`Spyndex`**: Calculates the visual index for hyperspectral data reading. 
-* **`Flet`**: Used to build interactive, cross-platform UI applications. 
 
-and once they are installed, run the following command:
 
-```bash
-playwright install chromium 
-``` 
 
-#### Verify the Installation
-
-- You can check that your packages were correctly installed by running: 
-```bash 
-python -c 'import pandas, numpy, matplotlib, markdown, playwright, spyndex, flet; print("All dependencies loaded successfully!")' 
-```
 
 
 
