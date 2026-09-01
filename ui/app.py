@@ -722,7 +722,7 @@ class HyperkeyUI:
                     ),
                     ft.Text(
                         "This permission does not replace Hyperkey's secure "
-                        "File Provider-based Open action. Files handed to Excel, "
+                        "FileProvider-based Open action. Files handed to Excel, "
                         "PDF viewers, Gallery, and other apps still receive only "
                         "temporary access to the specific file being opened.",
                         theme_style=ft.TextThemeStyle.BODY_SMALL,
@@ -796,9 +796,7 @@ class HyperkeyUI:
         dialog_title = "Select output folder"
         if self._is_android():
             dialog_title = (
-                "Select Hyperkey Default output folder"
-                "This folder will be used for all future runs."
-                "The default folder cannot be changed. Recommended: "
+                "Select Hyperkey output folder - recommended: "
                 "Internal Storage/Documents/Hyperkey"
             )
 
