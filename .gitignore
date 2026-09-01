@@ -6,11 +6,13 @@ ui\__pycache__
 __pycache__
 build/
 .flet
+.idea
+__pycache__/
 
 # Testing and coverage files
 .coverage
 .pytest_cache/
 coverage.xml
 .venv_test/
-__pycache__/
-.idea
+
+
