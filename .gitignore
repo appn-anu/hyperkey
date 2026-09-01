@@ -13,3 +13,4 @@ build/
 coverage.xml
 .venv_test/
 __pycache__/
+.idea
