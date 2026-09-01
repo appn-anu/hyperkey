@@ -722,7 +722,7 @@ class HyperkeyUI:
                     ),
                     ft.Text(
                         "This permission does not replace Hyperkey's secure "
-                        "FileProvider-based Open action. Files handed to Excel, "
+                        "File Provider-based Open action. Files handed to Excel, "
                         "PDF viewers, Gallery, and other apps still receive only "
                         "temporary access to the specific file being opened.",
                         theme_style=ft.TextThemeStyle.BODY_SMALL,
