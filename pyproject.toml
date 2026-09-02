@@ -1,5 +1,5 @@
 [project]
-name = "hyperkey"
+name = "HyperKey"
 version = "1.0.0"
 description = "Hyperkey hyperspectral data analysis application"
 requires-python = ">=3.12,<3.13"

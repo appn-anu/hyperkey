@@ -1,12 +1,33 @@
 #!/usr/bin/env python3
 
-# Example:
-# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1"
-# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" -o data\TestHyperKey\sydneyAPPN
-# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" -l "data\raw_location\species_locations.csv"
-# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" -d
-# python scripts/pipeline.py data/example_data/example1/metadata.csv -r "data\example_data\example1" --outlier-analysis
-# python scripts/pipeline.py -h
+# Examples:
+#
+# Open Hyperkey UI:
+# py hyperkey.py
+#
+# CLI - default output directory and default output names:
+# py hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1"
+#
+# CLI - default output directory with custom output name:
+# py hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -n sydneyAPPN
+#
+# CLI - custom output directory with default output names:
+# py hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -o "D:\Results\WheatData"
+#
+# CLI - custom output directory and custom output name:
+# py hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -o "D:\Results\WheatData" -n sydneyAPPN
+#
+# CLI - with species location data:
+# py hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -l "data/raw_location/species_locations.csv"
+#
+# CLI - disable dark mode:
+# py hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" -d
+#
+# CLI - enable outlier analysis:
+# py hyperkey.py data/example_data/example1/metadata.csv -r "data/example_data/example1" --outlier-analysis
+#
+# Show help:
+# py hyperkey.py -h
 
 import argparse
 import csv
@@ -113,19 +134,25 @@ def build_output_names(custom_prefix=None):
         spectral_graph_output_name = f"{custom_prefix}_SpectralGraph_{date_stamp}"
         report_output_name = f"{custom_prefix}_report_{date_stamp}"
         outlier_output_name = f"{custom_prefix}_outlier_analysis_{date_stamp}"
+        error_log_output_name = f"{custom_prefix}_error_log_{date_stamp}"
+        summary_output_name = f"{custom_prefix}_summary_{date_stamp}"
     else:
         merged_output_name = f"merged_spectral_data_{date_stamp}"
         heatmap_output_name = f"heatmap_{date_stamp}"
         spectral_graph_output_name = f"SpectralGraph_{date_stamp}"
         report_output_name = f"report_{date_stamp}"
         outlier_output_name = f"outlier_analysis_{date_stamp}"
+        error_log_output_name = f"error_log_{date_stamp}"
+        summary_output_name = f"summary_{date_stamp}"
 
     return {
         "merged_output_name": merged_output_name,
         "heatmap_output_name": heatmap_output_name,
         "spectral_graph_output_name": spectral_graph_output_name,
         "report_output_name": report_output_name,
-        "outlier_output_name": outlier_output_name
+        "outlier_output_name": outlier_output_name,
+        "error_log_output_name": error_log_output_name,
+        "summary_output_name": summary_output_name
     }
 
 def create_argument_parser():
@@ -433,6 +460,8 @@ def main(cli_arguments=None, default_output_directory=None):
     spectral_graph_output_name = output_names["spectral_graph_output_name"]
     report_output_name = output_names["report_output_name"]
     outlier_output_name = output_names["outlier_output_name"]
+    error_log_output_name = output_names["error_log_output_name"]
+    summary_output_name = output_names["summary_output_name"]
 
     output_csv = output_directory / f"{merged_output_name}.csv"
     heatmap_output_path = output_directory / f"{heatmap_output_name}.png"
@@ -441,13 +470,13 @@ def main(cli_arguments=None, default_output_directory=None):
     report_html_output_path = output_directory / f"{report_output_name}.html"
     report_pdf_output_path = output_directory / f"{report_output_name}.pdf"
     outlier_output_path = output_directory / f"{outlier_output_name}.csv"
+    log_path = output_directory / f"{error_log_output_name}.txt"
+    summary_path = output_directory / f"{summary_output_name}.json"
 
     raw_location_path = None
     if args.raw_location_path:
         raw_location_path = Path(args.raw_location_path).expanduser()
 
-    log_path = output_directory / "error_log.txt"
-    summary_path = output_directory / "summary.json"
     # ---------------------------
     # 2. Selection Phase
     # ---------------------------
