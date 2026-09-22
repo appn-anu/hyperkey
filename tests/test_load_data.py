@@ -12,6 +12,32 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 
+def test_is_valid_column():
+    pytest.importorskip("pandas")
+    from load_data import is_valid_column
+
+    assert is_valid_column("350.0")
+    assert is_valid_column("Name")
+    assert not is_valid_column("Prefix")
+
+
+def test_load_spectral_data_filters_metadata(tmp_path):
+    pytest.importorskip("pandas")
+    from load_data import load_spectral_data
+
+    csv_file = tmp_path / "spectral.csv"
+    csv_file.write_text(
+        "FileNum,Prefix,350.0,360.0,Calculated_FilePath\n"
+        "0,HR,0.15,0.16,HR.090923.0000.sig\n",
+        encoding="utf-8",
+    )
+
+    data = load_spectral_data(csv_file)
+
+    assert list(data.columns) == ["350.0", "360.0"]
+    assert data.loc[0, "350.0"] == 0.15
+
+
 class TestCSVHandling:
     """Test CSV file handling and metadata parsing."""
 
