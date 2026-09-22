@@ -94,7 +94,8 @@ def calculate_square_grid(n_measurements):
 
 def validate_row_range_columns(csv_path):
     """
-    Check if CSV contains 'row' and 'range' columns (case-insensitive) and validate them.
+    Check if CSV contains 'row' and either 'range' or 'col' columns
+    (case-insensitive) and validate them.
     Returns (rows_list, ranges_list) if valid, (None, None) if columns don't exist.
     Raises ValueError if columns exist but contain non-integer values.
     """
@@ -105,27 +106,31 @@ def validate_row_range_columns(csv_path):
     cols_lower = {col.lower(): col for col in raw_df.columns}
     
     has_row = 'row' in cols_lower
-    has_range = 'range' in cols_lower
+    coordinate_col = cols_lower.get('range') or cols_lower.get('col')
+    has_coordinate = coordinate_col is not None
     
     # If neither exists, return None and use square grid
-    if not has_row and not has_range:
+    if not has_row and not has_coordinate:
         return None, None
     
     # If only one exists, that's an error
-    if has_row != has_range:
-        missing = 'range' if has_row else 'row'
-        raise ValueError(f"Found 'row' column but missing '{missing}' column. Both must exist together.")
+    if has_row != has_coordinate:
+        raise ValueError(
+            f"Found 'row' column but missing 'range' or 'col' column. "
+            "Both must exist together."
+        )
     
     # Both columns exist - validate them strictly
     row_col = cols_lower['row']
-    range_col = cols_lower['range']
     
     try:
         row_vals = pd.to_numeric(raw_df[row_col], errors='coerce')
-        range_vals = pd.to_numeric(raw_df[range_col], errors='coerce')
+        range_vals = pd.to_numeric(raw_df[coordinate_col], errors='coerce')
         
         if row_vals.isna().any() or range_vals.isna().any():
-            raise ValueError("Found non-numeric values in 'row' or 'range' columns")
+            raise ValueError(
+                f"Found non-numeric values in 'row' or '{coordinate_col}' columns"
+            )
         
         # Check if all values are integers
         if not (row_vals == row_vals.astype(int)).all() or not (range_vals == range_vals.astype(int)).all():
@@ -176,16 +181,19 @@ def load_location_mapping(location_path, measurement_names):
     """Load a location file and map each measurement name to a grid coordinate."""
     location_df = pd.read_csv(location_path, header=0)
     cols_lower = {col.lower(): col for col in location_df.columns}
+    coordinate_col = cols_lower.get('range') or cols_lower.get('col')
 
-    if 'row' in cols_lower and 'range' in cols_lower:
+    if 'row' in cols_lower and coordinate_col is not None:
         row_col = cols_lower['row']
-        range_col = cols_lower['range']
 
         row_vals = pd.to_numeric(location_df[row_col], errors='coerce')
-        range_vals = pd.to_numeric(location_df[range_col], errors='coerce')
+        range_vals = pd.to_numeric(location_df[coordinate_col], errors='coerce')
 
         if row_vals.isna().any() or range_vals.isna().any():
-            raise ValueError("Found non-numeric values in location file 'row' or 'range' columns")
+            raise ValueError(
+                f"Found non-numeric values in location file 'row' or "
+                f"'{coordinate_col}' columns"
+            )
 
         if not (row_vals == row_vals.astype(int)).all() or not (range_vals == range_vals.astype(int)).all():
             raise ValueError("All values in location file 'row' and 'range' columns must be integers")
