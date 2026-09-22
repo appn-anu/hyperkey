@@ -6,15 +6,16 @@ Tests the core functionality of the data extraction and merge pipeline.
 
 import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
 import sys
+import csv
+import json
 
 # Import pipeline functions
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from pipeline import (
     get_date_stamp,
     get_log_timestamp,
-    parse_output_target,
+    main,
     build_output_names,
     format_filenum,
     normalise_subfolder,
@@ -121,45 +122,27 @@ class TestParseSigFile:
         assert reflectance == []
 
 
-class TestParseOutputTarget:
-    """Test output target parsing."""
+@pytest.mark.integration
+def test_main_writes_outputs_to_requested_directory(tmp_path, sample_sig_file):
+    """The CLI options control the output directory and filename prefix."""
+    sig_file = tmp_path / "HR.090923.0000.sig"
+    sig_file.write_bytes(sample_sig_file.read_bytes())
+    metadata = tmp_path / "metadata.csv"
+    metadata.write_text("FileNum,Date,Prefix,Subfolder\n0,090923,HR,\n", encoding="utf-8")
+    output_dir = tmp_path / "output"
 
-    def test_parse_output_target_none(self, temp_dir):
-        """Test with None output value (use default)."""
-        result = parse_output_target(None, temp_dir)
-        
-        assert result["custom_prefix"] is None
-        assert result["output_directory"] == temp_dir
-        assert result["is_path_output"] is False
+    result = main([str(metadata), "-r", str(tmp_path), "-o", str(output_dir), "-n", "sydney"])
 
-    def test_parse_output_target_basename(self, temp_dir):
-        """Test with just a base name."""
-        result = parse_output_target("myprefix", temp_dir)
-        
-        assert result["custom_prefix"] == "myprefix"
-        assert result["output_directory"] == temp_dir
-        assert result["is_path_output"] is False
-
-    def test_parse_output_target_basename_with_csv(self, temp_dir):
-        """Test basename with .csv extension."""
-        result = parse_output_target("myprefix.csv", temp_dir)
-        
-        assert result["custom_prefix"] == "myprefix"
-        assert result["output_directory"] == temp_dir
-
-    def test_parse_output_target_full_path(self, temp_dir):
-        """Test with full path."""
-        subdir = temp_dir / "output"
-        result = parse_output_target(str(subdir / "myprefix"), temp_dir)
-        
-        assert result["custom_prefix"] == "myprefix"
-        assert result["output_directory"] == subdir
-        assert result["is_path_output"] is True
-
-    def test_parse_output_target_empty_raises(self, temp_dir):
-        """Test that empty output value raises ValueError."""
-        with pytest.raises(ValueError):
-            parse_output_target("", temp_dir)
+    assert result["output_directory"] == output_dir
+    assert result["matched_files"] == 1
+    assert result["output_csv"].parent == output_dir
+    assert result["output_csv"].name.startswith("sydney_merged_spectral_data_")
+    with result["output_csv"].open(newline="", encoding="utf-8") as file:
+        rows = list(csv.DictReader(file))
+    assert rows[0]["350.0"] == "0.15"
+    summary = json.loads(result["summary_path"].read_text(encoding="utf-8"))
+    assert summary["custom_output_name"] == "sydney"
+    assert summary["matched_files"] == 1
 
 
 class TestBuildOutputNames:
