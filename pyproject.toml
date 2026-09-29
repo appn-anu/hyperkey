@@ -10,7 +10,7 @@ dependencies = [
     "fonttools==4.63.0",
     "flet==0.86.5",
     "flet-permission-handler==0.86.5",
-    "hyperkey-file-opener @ file:///D:/Masters%20of%20computing/Tech%20Launcher/hyperkey/hyperkey-file-opener",
+    "hyperkey-file-opener @ file://C:/Users/Samwi/OneDrive/Documents/Uni/Tech%20Launcher/hyperkey/hyperkey_file_opener",
     "greenlet==3.5.1",
     "kiwisolver==1.5.0",
     "Markdown==3.10.3",
@@ -34,3 +34,6 @@ module = "hyperkey"
 
 [tool.flet.android.permission]
 "android.permission.MANAGE_EXTERNAL_STORAGE" = true
+
+[tool.flet.android]
+extract_packages = ["matplotlib"]
