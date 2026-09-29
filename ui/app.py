@@ -37,7 +37,7 @@ class HyperkeyUI:
     # App setup
     # ------------------------------------------------------------------
     def _configure_page(self) -> None:
-        self.page.title = "Hyperkey"
+        self.page.title = "HyperKey"
 
         # Follow the operating system's current light/dark preference by default.
         self.page.theme_mode = ft.ThemeMode.SYSTEM
@@ -48,7 +48,7 @@ class HyperkeyUI:
         self.page.theme = ft.Theme(use_material3=True)
         self.page.dark_theme = ft.Theme(use_material3=True)
 
-        # Keep Hyperkey in sync if the user changes the OS appearance while the
+        # Keep HyperKey in sync if the user changes the OS appearance while the
         # application is open.
         self.page.on_platform_brightness_change = self._on_platform_brightness_change
 
@@ -322,7 +322,7 @@ class HyperkeyUI:
         # Advanced CLI fallback. Keep this deliberately large because commands
         # can be long, especially when Android returns longer document paths.
         self.cli_field = self._style_input_field(ft.TextField(
-            label="Hyperkey arguments or full command",
+            label="HyperKey arguments or full command",
             hint_text=(
                 'metadata.csv -r raw_data -n result  OR  '
                 'metadata.csv -r raw_data -o output_folder -n result'
@@ -336,7 +336,7 @@ class HyperkeyUI:
         self.cli_status = ft.Text()
 
         self.run_button = ft.Button(
-            content="Run Hyperkey",
+            content="Run HyperKey",
             icon=ft.Icons.PLAY_ARROW,
             on_click=self._run_form,
             height=52,
@@ -379,7 +379,7 @@ class HyperkeyUI:
                 if self._system_is_dark()
                 else ft.Icons.DARK_MODE_OUTLINED
             ),
-            tooltip="Toggle Hyperkey dark mode",
+            tooltip="Toggle HyperKey dark mode",
             on_click=self._toggle_app_theme,
         )
         self.help_button = ft.IconButton(
@@ -438,7 +438,7 @@ class HyperkeyUI:
                         spacing=0,
                         expand=True,
                         controls=[
-                            ft.Text("Hyperkey", weight=ft.FontWeight.BOLD, size=17),
+                            ft.Text("HyperKey", weight=ft.FontWeight.BOLD, size=17),
                             ft.Text(
                                 "Hyperspectral data processing",
                                 theme_style=ft.TextThemeStyle.BODY_SMALL,
@@ -512,7 +512,7 @@ class HyperkeyUI:
         return str(destination)
 
     def _is_android(self) -> bool:
-        """Return True when Hyperkey is running as an Android app."""
+        """Return True when HyperKey is running as an Android app."""
         return self.page.platform == ft.PagePlatform.ANDROID
 
     ANDROID_OUTPUT_PREF = "hyperkey.android.output_directory"
@@ -557,16 +557,16 @@ class HyperkeyUI:
 
         path = await ft.FilePicker().get_directory_path(
             dialog_title=(
-                "Select Hyperkey Default output folder"
+                "Select HyperKey Default output folder"
                 "This folder will be used for all future runs."
                 "The default folder cannot be changed. Recommended: "
-                "Internal Storage/Documents/Hyperkey"
+                "Internal Storage/Documents/HyperKey"
             )
         )
 
         if not path:
             status = self.form_status if run_mode == "form" else self.cli_status
-            status.value = "Output folder not selected. Hyperkey was not started."
+            status.value = "Output folder not selected. HyperKey was not started."
             status.color = ft.Colors.ORANGE
             self.page.update()
             return
@@ -594,7 +594,7 @@ class HyperkeyUI:
 
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Choose Hyperkey output folder"),
+            title=ft.Text("Choose HyperKey output folder"),
             content=ft.Column(
                 tight=True,
                 spacing=12,
@@ -611,7 +611,7 @@ class HyperkeyUI:
                         ),
                     ),
                     ft.Text(
-                        "You only need to select this once. Hyperkey will remember "
+                        "You only need to select this once. HyperKey will remember "
                         "this folder for future runs."
                         "Warning: The default folder cannot be changed later."
                     ),
@@ -717,7 +717,7 @@ class HyperkeyUI:
         self.page.update()
 
     async def _open_android_permission_settings(self, _e=None) -> None:
-        """Open Hyperkey's Android app settings as a fallback."""
+        """Open HyperKey's Android app settings as a fallback."""
         if not self._is_android():
             return
 
@@ -742,17 +742,17 @@ class HyperkeyUI:
 
         dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Allow Hyperkey file access"),
+            title=ft.Text("Allow HyperKey file access"),
             content=ft.Column(
                 tight=True,
                 spacing=12,
                 controls=[
                     ft.Text(
-                        "Hyperkey can work with files selected through Android's "
+                        "HyperKey can work with files selected through Android's "
                         "pickers without this permission."
                     ),
                     ft.Text(
-                        "All files access is requested so Hyperkey can also read "
+                        "All files access is requested so HyperKey can also read "
                         "and write direct custom paths that you enter manually, "
                         "including folders in shared internal storage."
                     ),
@@ -765,7 +765,7 @@ class HyperkeyUI:
                             spacing=6,
                             controls=[
                                 ft.Text(
-                                    "Why Hyperkey needs it",
+                                    "Why HyperKey needs it",
                                     weight=ft.FontWeight.BOLD,
                                 ),
                                 ft.Text("• Read metadata CSV and spectral files from custom paths."),
@@ -777,11 +777,11 @@ class HyperkeyUI:
                     ),
                     ft.Text(
                         "Android will open a system settings screen. Enable "
-                        "“Allow access to manage all files” for Hyperkey, then "
+                        "“Allow access to manage all files” for HyperKey, then "
                         "return to the app."
                     ),
                     ft.Text(
-                        "This permission does not replace Hyperkey's secure "
+                        "This permission does not replace HyperKey's secure "
                         "FileProvider-based Open action. Files handed to Excel, "
                         "PDF viewers, Gallery, and other apps still receive only "
                         "temporary access to the specific file being opened.",
@@ -856,8 +856,8 @@ class HyperkeyUI:
         dialog_title = "Select output folder"
         if self._is_android():
             dialog_title = (
-                "Select Hyperkey output folder - recommended: "
-                "Internal Storage/Documents/Hyperkey"
+                "Select HyperKey output folder - recommended: "
+                "Internal Storage/Documents/HyperKey"
             )
 
         path = await ft.FilePicker().get_directory_path(dialog_title=dialog_title)
@@ -922,7 +922,7 @@ class HyperkeyUI:
 
         options_card = self._section_panel(
             "Analysis options",
-            subtitle="Hyperkey's interface and generated visualisations share the same dark-mode setting.",
+            subtitle="HyperKey's interface and generated visualisations share the same dark-mode setting.",
             icon=ft.Icons.TUNE,
             controls=[
                 self._responsive_switches(),
@@ -966,7 +966,7 @@ class HyperkeyUI:
                 spacing=14,
                 controls=[
                     self._screen_title(
-                        "Run Hyperkey",
+                        "Run HyperKey",
                         "Configure a processing job.",
                     ),
                     input_card,
@@ -984,7 +984,7 @@ class HyperkeyUI:
     def _cli_screen(self) -> ft.Control:
         cli_card = self._section_panel(
             "CLI input",
-            subtitle="Paste Hyperkey arguments or a complete python hyperkey.py command.",
+            subtitle="Paste HyperKey arguments or a complete python hyperkey.py command.",
             icon=ft.Icons.TERMINAL,
             controls=[
                 self.cli_field,
@@ -1568,7 +1568,7 @@ class HyperkeyUI:
                 controls=[
                     self._screen_title(
                         "Outputs",
-                        "Generated files from the latest run. Open them with a compatible app or share them without closing Hyperkey.",
+                        "Generated files from the latest run. Open them with a compatible app or share them without closing HyperKey.",
                     ),
                     self.output_status,
                     self.outputs_content,
@@ -1584,7 +1584,7 @@ class HyperkeyUI:
                 ft.Card(
                     content=ft.Container(
                         padding=20,
-                        content=ft.Text("No Hyperkey run has been started yet."),
+                        content=ft.Text("No HyperKey run has been started yet."),
                     )
                 )
             )
@@ -1613,7 +1613,7 @@ class HyperkeyUI:
             self.outputs_content.controls.append(
                 section_card(
                     "Report preview",
-                    subtitle="Markdown is the native in-app report format used by Hyperkey.",
+                    subtitle="Markdown is the native in-app report format used by HyperKey.",
                     controls=[
                         ft.Text(
                             "No Markdown report was found in the current output directory."
@@ -1709,7 +1709,7 @@ class HyperkeyUI:
                 expand=True,
                 spacing=14,
                 controls=[
-                    self._screen_title("Logs", "Execution messages from the latest Hyperkey run."),
+                    self._screen_title("Logs", "Execution messages from the latest HyperKey run."),
                     self.logs_field,
                 ],
             ),
@@ -1734,7 +1734,7 @@ class HyperkeyUI:
                 ft.Card(
                     content=ft.Container(
                         padding=20,
-                        content=ft.Text("No Hyperkey run has been started yet."),
+                        content=ft.Text("No HyperKey run has been started yet."),
                     )
                 )
             )
@@ -1852,13 +1852,13 @@ class HyperkeyUI:
     async def _execute_form_run(self) -> None:
         self.processing_bar.visible = True
         self.run_button.disabled = True
-        self.form_status.value = "Running Hyperkey..."
+        self.form_status.value = "Running HyperKey..."
         self.page.update()
         try:
             config = self._config_from_form()
             result = await asyncio.to_thread(self.service.run_config, config)
         except Exception as exc:
-            result = RunResult(False, f"Unable to start Hyperkey: {exc}", logs=[f"ERROR: {exc}"])
+            result = RunResult(False, f"Unable to start HyperKey: {exc}", logs=[f"ERROR: {exc}"])
         finally:
             self.processing_bar.visible = False
             self.run_button.disabled = False
@@ -1885,7 +1885,7 @@ class HyperkeyUI:
 
     async def _execute_cli_run(self, android_output: str | None = None) -> None:
         self.cli_run_button.disabled = True
-        self.cli_status.value = "Running Hyperkey arguments..."
+        self.cli_status.value = "Running HyperKey arguments..."
         self.page.update()
         try:
             arguments = self.service.parse_cli_text(self.cli_field.value or "")
@@ -1949,7 +1949,7 @@ class HyperkeyUI:
     def _show_help(self, _e) -> None:
         help_dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Hyperkey help"),
+            title=ft.Text("HyperKey help"),
             content=ft.Column(
                 tight=True,
                 scroll=ft.ScrollMode.AUTO,
