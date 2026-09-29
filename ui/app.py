@@ -1969,13 +1969,11 @@ class HyperkeyUI:
                     help_item(
                         "Output name",
                         "Optional output-name prefix. It is passed separately as -n/--name. Existing Hyperkey dated naming is preserved by the backend.",
-                        "Optional output-name prefix. It is passed separately as -n/--name. Existing Hyperkey dated naming is preserved by the backend.",
                     ),
                     help_item(
                         "Output directory",
                         "Optional destination directory for generated outputs. If empty, Windows uses Documents/Hyperkey and Android uses Downloads/Hyperkey. A selected folder is passed separately as -o/--output and overrides the default.",
-                        "Optional destination directory for generated outputs. If empty, Windows uses Documents/Hyperkey and Android uses Downloads/Hyperkey. A selected folder is passed separately as -o/--output and overrides the default.",
-                    ),
+                    ),  
                     help_item(
                         "Dark mode",
                         "Hyperkey follows the operating system light/dark preference by default. The top-right theme button and this switch are synchronized, and the same setting is used for generated visualisations.",
