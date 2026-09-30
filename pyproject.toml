@@ -34,3 +34,6 @@ module = "hyperkey"
 
 [tool.flet.android.permission]
 "android.permission.MANAGE_EXTERNAL_STORAGE" = true
+
+[tool.flet.android]
+extract_packages = ["matplotlib"]
